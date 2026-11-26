@@ -1,0 +1,36 @@
+{
+  "target": "Annual detected irregular-presence cases / population on 1 January",
+  "not_a_probability_of_individual_status": true,
+  "data_years": [
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "training_rows": 152324,
+  "countries": 27,
+  "citizenships": 168,
+  "age_denominator_assumption": "15–64 population uniformly distributed across 50 ages for Under 18, 18–34, 35+; All ages exact sum of reported population bands",
+  "validation_2025": {
+    "all_citizenships": {
+      "rows": 216,
+      "mae_percentage_points": 1.8178
+    },
+    "specific_citizenship": {
+      "rows": 19787,
+      "mae_percentage_points": 2.0105
+    }
+  },
+  "warnings": [
+    "Population on January 1 is not a verified legal-status population.",
+    "Annual detections are events and are not an estimate of every person illegally present.",
+    "The population at risk of detection includes short-stay visitors who may be omitted from registered population counts.",
+    "Age-specific denominators rely on a strong uniform-age assumption.",
+    "Counts are rounded, some missing/suppressed, and outlier cells with detections exceeding population proxy are excluded.",
+    "Model outputs MUST NOT be used to judge an individual or make enforcement decisions."
+  ]
+}
