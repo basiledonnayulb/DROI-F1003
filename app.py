@@ -64,7 +64,6 @@ with st.sidebar:
     origin=st.selectbox('Citizenship', ['All third-country citizenships']+origin_options)
     year=st.select_slider('Reference year', options=sorted(years), value=max(years))
     st.divider()
-    st.info('The output is an **aggregate detection-rate benchmark**, not a prediction of anyone’s immigration status.')
     st.caption('Eurostat • 2018–2025 • 27 EU reporting countries')
 
 citizenship='Total' if origin=='All third-country citizenships' else origin
@@ -84,7 +83,6 @@ st.markdown(f'''<div class="hero"><span class="pill">MODEL ESTIMATE · AGGREGATE
 <div class="n">{model_pct:.3f}%</div>
 <div class="small">≈ {model_pct*1000:,.0f} modeled detections per 100,000 population-benchmark members</div>
 </div>''',unsafe_allow_html=True)
-st.warning('**Not a probability of illegal presence.** Detected cases are annual enforcement observations; the comparator is registered resident population on 1 January. These are not matching individual-level outcome groups.')
 
 c1,c2,c3=st.columns(3)
 c1.metric('Observed benchmark',f"{observed['rate_pct']:.3f}%",help='Annual detections divided by resident population benchmark; not a prevalence probability')

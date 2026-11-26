@@ -1,0 +1,91 @@
+
+@inproceedings{goossens_robust_2025,
+	address = {New York, NY, USA},
+	series = {{RTNS} '24},
+	title = {Robust {Schedulability} {Tests} for {Fixed} {Job} {Priorities}: {Addressing} {Context} {Switch} {Costs} with {Non}-{Resumable} {Delays}},
+	isbn = {979-8-4007-1724-6},
+	shorttitle = {Robust {Schedulability} {Tests} for {Fixed} {Job} {Priorities}},
+	url = {https://dl.acm.org/doi/10.1145/3696355.3699697},
+	doi = {10.1145/3696355.3699697},
+	abstract = {In this research, we extend the traditional model of recurrent real-time tasks to incorporate the cost of context switches; we introduce the concept of Non-Resumable delays (i.e., loading phases are preemptive, but the processing time already expended in attempting to load a task is forfeited). We propose a model that addresses previous methodology flaws regarding the pessimism and scheduling anomalies, which could be implementable on certain and models high-level abstraction of what is a context switch activity. We provide two exact schedulability tests for two popular scheduling families (Fixed Task Priority as Rate Monotonic and as Earliest Deadline First). These tests are sustainable regarding the execution times and the preemption costs. They are based on the notion of simulation interval and properties of the schedule repetition. We conclude with a discussion of the advantages and drawbacks of our model and the future perspectives it opens up.},
+	urldate = {2026-04-17},
+	booktitle = {Proceedings of the 32nd {International} {Conference} on {Real}-{Time} {Networks} and {Systems}},
+	publisher = {Association for Computing Machinery},
+	author = {Goossens, Joël and Masson, Damien},
+	month = jan,
+	year = {2025},
+	pages = {290--301},
+	file = {Full Text PDF:C\:\\Users\\basil\\Zotero\\storage\\CAA86M9W\\Goossens and Masson - 2025 - Robust Schedulability Tests for Fixed Job Priorities Addressing Context Switch Costs with Non-Resum.pdf:application/pdf},
+}
+
+
+@inproceedings{barral_response_2025,
+	address = {Pisa, Italy},
+	title = {Response time analysis for sporadic tasks in uniprocessor fixed-priority scheduling with starting and resuming delays},
+	url = {https://cnrs.hal.science/hal-05456700},
+	abstract = {In this work, we address the scheduling of sporadic tasks on a uniprocessor under preemptive fixed-priority policies, incorporating both starting and resuming delays. Starting and resuming delays represent the extra time, relative to the task's execution time, necessary to first start a job or to resume it after a preemption. In this study, we consider that these delays are introduced by a protection mechanism executed by each task before starting and resuming, yet the theoretical results are general and apply for other sources of delays. For this model, there is no response time analysis in the literature. We propose the first schedulability test based on a response time analysis, which computes an upper bound on the worst-case response time. We then discuss and evaluate the pessimism of the proposed schedulability test and the worst-case response time bound.},
+	urldate = {2026-04-18},
+	booktitle = {33rd {International} {Conference} on {Real}-{Time} {Networks} and {Systems} ({RTNS} '25)},
+	author = {Barral, Hadrien and Abdeddaïm, Yasmina and Masson, Damien and Goossens, Joël},
+	month = oct,
+	year = {2025},
+	keywords = {Fixed priority scheduling, Fixed priority scheduling response time analysis security, response time analysis, security},
+	file = {HAL PDF Full Text:C\:\\Users\\basil\\Zotero\\storage\\5N75FC8R\\Barral et al. - 2025 - Response time analysis for sporadic tasks in uniprocessor fixed-priority scheduling with starting an.pdf:application/pdf},
+}
+
+@inproceedings{goossens_simulation_2022,
+	address = {New York, NY, USA},
+	series = {{RTNS} '22},
+	title = {Simulation intervals for uniprocessor real-time schedulers with preemption delay},
+	isbn = {978-1-4503-9650-9},
+	url = {https://dl.acm.org/doi/10.1145/3534879.3534887},
+	doi = {10.1145/3534879.3534887},
+	abstract = {In the framework of embedded and time-critical systems we consider the scheduling of preemptive real-time periodic tasks upon uniprocessor. We consider the notion of simulation interval, a finite time interval such that the schedule starts to repeat in a cycle. The interest is to design a time interval which includes all possible (reachable) schedule states. Our study focuses on a model where preemption costs are explicitly considered, i.e., the time required by the real-time operating system (rtos) or the hardware to load the context of execution of preempted jobs. We present and prove correct a simulation interval for asynchronous arbitrary deadline tasks with preemption delays and that holds for any deterministic and memoryless scheduler upon uniprocessor. This first contribution is valid for all schedulers one can imagine (but deterministic and memoryless), including non-preemptive schedulers, not work-conserving, not necessarily popular “real-time” ones. We then consider a particular case, regarding the preemption delays, for edf scheduling for which we extend the work of Leung and Merrill\&nbsp;[24] showing that [0, Omax  + 2 · H) is a simulation interval (significantly shorter than the general result). We also show that [0, Sn + H) from\&nbsp;[16] remains a simulation interval for fixed task priority (ftp) schedulers. Before concluding we open a discussion on the scope of the results, paths for reducing pessimism as well as other potential results opened by this work.},
+	urldate = {2026-04-18},
+	booktitle = {Proceedings of the 30th {International} {Conference} on {Real}-{Time} {Networks} and {Systems}},
+	publisher = {Association for Computing Machinery},
+	author = {Goossens, Joel and Masson, Damien},
+	month = jun,
+	year = {2022},
+	pages = {36--45},
+	file = {Full Text PDF:C\:\\Users\\basil\\Zotero\\storage\\6SC5ISZB\\Goossens and Masson - 2022 - Simulation intervals for uniprocessor real-time schedulers with preemption delay.pdf:application/pdf},
+}
+
+@misc{freertos,
+	title = {{FreeRTOS} documentation - {FreeRTOS}™},
+	url = {https://freertos.org/Documentation/00-Overview},
+	urldate = {2026-04-17},
+	file = {Snapshot:C\:\\Users\\basil\\Zotero\\storage\\CNRG45M5\\00-Overview.html:text/html},
+}
+
+@misc{wiki.linuxfoundation,
+	title = {realtime:start [{Wiki}]},
+	url = {https://wiki.linuxfoundation.org/realtime/start},
+	urldate = {2026-04-17},
+	file = {realtime\:start [Wiki]:C\:\\Users\\basil\\Zotero\\storage\\2LBRQEZ6\\start.html:text/html},
+}
+
+@misc{ubuntu,
+	title = {Installing a real-time {Ubuntu} kernel on a {Raspberry} {Pi} - {Project} {Discussion} / {Kernel} - {Ubuntu} {Community} {Hub}},
+	url = {https://discourse.ubuntu.com/t/installing-a-real-time-ubuntu-kernel-on-a-raspberry-pi/34833},
+	urldate = {2026-04-17},
+	file = {Installing a real-time Ubuntu kernel on a Raspberry Pi - Project Discussion / Kernel - Ubuntu Community Hub:C\:\\Users\\basil\\Zotero\\storage\\BDPQT8BG\\34833.html:text/html},
+}
+
+@misc{redhat,
+	title = {Chapter 4. {Setting} up real-time virtual machines {\textbar} {Configuring} virtualization on {RHEL} 10 for {Real} {Time} {\textbar} {Red} {Hat} {Enterprise} {Linux} for {Real} {Time} {\textbar} 10 {\textbar} {Red} {Hat} {Documentation}},
+	url = {https://docs.redhat.com/en/documentation/red_hat_enterprise_linux_for_real_time/10/html/configuring_virtualization_on_rhel_10_for_real_time/setting-up-real-time-virtual-machines},
+	urldate = {2026-04-17},
+	file = {Chapter 4. Setting up real-time virtual machines | Configuring virtualization on RHEL 10 for Real Time | Red Hat Enterprise Linux for Real Time | 10 | Red Hat Documentation:C\:\\Users\\basil\\Zotero\\storage\\ZAFX3SLS\\setting-up-real-time-virtual-machines.html:text/html},
+}
+
+@misc{GeeksforGeeks,
+	title = {Difference between {Periodic} and {Sporadic} {Real}-time {Tasks}},
+	url = {https://www.geeksforgeeks.org/operating-systems/difference-between-periodic-and-sporadic-real-time-tasks/},
+	abstract = {Your All-in-One Learning Portal: GeeksforGeeks is a comprehensive educational platform that empowers learners across domains-spanning computer science and programming, school education, upskilling, commerce, software tools, competitive exams, and more.},
+	language = {en},
+	urldate = {2026-04-27},
+	journal = {GeeksforGeeks},
+	note = {Section: Operating Systems},
+	file = {Snapshot:C\:\\Users\\basil\\Zotero\\storage\\XKAD5QQF\\difference-between-periodic-and-sporadic-real-time-tasks.html:text/html},
+}
