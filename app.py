@@ -5,6 +5,7 @@ import csv
 from io import StringIO
 from pathlib import Path
 import joblib
+import sklearn
 import plotly.graph_objects as go
 import streamlit as st
 from src.model import read_training, choose_rows, summarize_cohort, predicted_pct
@@ -34,6 +35,16 @@ def get_model(): return joblib.load(DATA/'model.joblib')
 @st.cache_data
 
 def get_rows(): return read_training(DATA/'training.csv')
+
+if sklearn.__version__ != '1.8.0':
+    st.error(
+        f"The bundled pretrained model requires scikit-learn 1.8.0, "
+        f"but this environment has {sklearn.__version__}. "
+        "In your activated virtual environment, run "
+        "`python -m pip install --force-reinstall scikit-learn==1.8.0` "
+        "and restart Streamlit."
+    )
+    st.stop()
 
 if not (DATA/'training.csv').exists() or not (DATA/'model.joblib').exists():
     st.error('Training artifacts missing. Run `python train.py` first.')
@@ -113,6 +124,104 @@ if age_rows:
         yaxis_title='Observed benchmark (%)',paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
     st.plotly_chart(bars,use_container_width=True)
     st.caption('All age-specific comparisons use approximate denominators; they are not individual legal-status risks.')
+
+st.markdown('### Compare citizenships')
+# Compare the top 15 citizenships by recorded detections.
+# Combine every remaining citizenship into "Other", including small cohorts.
+citizenship_groups = {}
+for r in rows:
+    if r['citizenship'] == 'Total' or r['year'] != year or r['age'] != age:
+        continue
+    if sex != 'All' and r['sex'] != sex:
+        continue
+    if country != 'All' and r['country'] != country:
+        continue
+    citizenship_groups.setdefault(r['citizenship'], []).append(r)
+
+citizenship_stats = {}
+for name, cohort in citizenship_groups.items():
+    stats = summarize_cohort(cohort)
+    if stats and stats['population_proxy'] > 0:
+        citizenship_stats[name] = stats
+
+if citizenship_stats:
+    # Keep the original 1,000-person threshold for individually displayed groups.
+    # Smaller groups are still counted in "Other"; they are not discarded.
+    top_15 = sorted(
+        (name for name, stats in citizenship_stats.items()
+         if stats['population_proxy'] >= 1000),
+        key=lambda name: citizenship_stats[name]['detections'],
+        reverse=True,
+    )[:15]
+
+    # Aggregate counts BEFORE dividing: never average citizenship percentages.
+    other_rows = [
+        row
+        for name, cohort in citizenship_groups.items()
+        if name not in top_15
+        for row in cohort
+    ]
+    other_stats = summarize_cohort(other_rows)
+
+    display_stats = {name: citizenship_stats[name] for name in top_15}
+    if other_stats and other_stats['population_proxy'] > 0:
+        display_stats['Other'] = other_stats
+
+    # Plotly horizontal bar charts draw the first category at the bottom by
+    # default. Reversing the axis puts the top-ranked group first and Other last.
+    shown = sorted(
+        top_15,
+        key=lambda name: display_stats[name]['rate_pct'],
+        reverse=True
+    )
+
+    if 'Other' in display_stats:
+        shown.append('Other')
+    
+    fig_cit = go.Figure(go.Bar(
+        x=[display_stats[name]['rate_pct'] for name in shown],
+        y=shown,
+        orientation='h',
+        text=[f"{display_stats[name]['rate_pct']:.2f}%" for name in shown],
+        textposition='outside',
+        marker_color=[
+            '#a1aaa3' if name == 'Other'
+            else '#296646' if name == origin
+            else '#78a68a'
+            for name in shown
+        ],
+        customdata=[
+            [display_stats[name]['detections'],
+             display_stats[name]['population_proxy']]
+            for name in shown
+        ],
+        hovertemplate=(
+            '<b>%{y}</b><br>'
+            'Observed benchmark: %{x:.2f}%<br>'
+            'Recorded detections: %{customdata[0]:,.0f}<br>'
+            'Resident population benchmark: %{customdata[1]:,.0f}'
+            '<extra></extra>'
+        ),
+    ))
+    fig_cit.update_layout(
+        height=max(400, 34 * len(shown) + 115),
+        margin=dict(l=10, r=65, t=15, b=20),
+        xaxis_title='Observed detection benchmark (%)',
+        yaxis_title='Citizenship',
+        yaxis=dict(autorange='reversed'),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+    )
+    st.plotly_chart(fig_cit, use_container_width=True)
+    st.caption(
+        'Top 15 ranked by recorded detections (not by percentage). '
+        'Other combines all remaining available citizenship groups, '
+        'including groups with fewer than 1,000 benchmark residents; '
+        'its percentage is total detections divided by total benchmark population. '
+        'These are detection/population ratios, not individual probabilities.'
+    )
+else:
+    st.info('No citizenship comparison data are available for these filters.')
 
 with st.expander('Model quality and data methodology',expanded=False):
     key='all_citizenships' if citizenship=='Total' else 'specific_citizenship'
