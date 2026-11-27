@@ -1,91 +1,226 @@
-
-@inproceedings{goossens_robust_2025,
-	address = {New York, NY, USA},
-	series = {{RTNS} '24},
-	title = {Robust {Schedulability} {Tests} for {Fixed} {Job} {Priorities}: {Addressing} {Context} {Switch} {Costs} with {Non}-{Resumable} {Delays}},
-	isbn = {979-8-4007-1724-6},
-	shorttitle = {Robust {Schedulability} {Tests} for {Fixed} {Job} {Priorities}},
-	url = {https://dl.acm.org/doi/10.1145/3696355.3699697},
-	doi = {10.1145/3696355.3699697},
-	abstract = {In this research, we extend the traditional model of recurrent real-time tasks to incorporate the cost of context switches; we introduce the concept of Non-Resumable delays (i.e., loading phases are preemptive, but the processing time already expended in attempting to load a task is forfeited). We propose a model that addresses previous methodology flaws regarding the pessimism and scheduling anomalies, which could be implementable on certain and models high-level abstraction of what is a context switch activity. We provide two exact schedulability tests for two popular scheduling families (Fixed Task Priority as Rate Monotonic and as Earliest Deadline First). These tests are sustainable regarding the execution times and the preemption costs. They are based on the notion of simulation interval and properties of the schedule repetition. We conclude with a discussion of the advantages and drawbacks of our model and the future perspectives it opens up.},
-	urldate = {2026-04-17},
-	booktitle = {Proceedings of the 32nd {International} {Conference} on {Real}-{Time} {Networks} and {Systems}},
-	publisher = {Association for Computing Machinery},
-	author = {Goossens, Joël and Masson, Damien},
-	month = jan,
-	year = {2025},
-	pages = {290--301},
-	file = {Full Text PDF:C\:\\Users\\basil\\Zotero\\storage\\CAA86M9W\\Goossens and Masson - 2025 - Robust Schedulability Tests for Fixed Job Priorities Addressing Context Switch Costs with Non-Resum.pdf:application/pdf},
+% ===== LÉGISLATION =====
+@misc{ai_act_2024,
+  author       = {{Parlement européen et Conseil de l'Union européenne}},
+  title        = {{Règlement (UE) 2024/1689 du 13 juin 2024 établissant des règles harmonisées concernant l'intelligence artificielle (AI Act)}},
+  year         = {2024},
+  howpublished = {Journal officiel de l'Union européenne, L 2024/1689, 12 juillet 2024},
+  url          = {https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX:32024R1689},
+  note         = {Article 3, paragraphe 1 : définition d'un système d'IA}
 }
 
-
-@inproceedings{barral_response_2025,
-	address = {Pisa, Italy},
-	title = {Response time analysis for sporadic tasks in uniprocessor fixed-priority scheduling with starting and resuming delays},
-	url = {https://cnrs.hal.science/hal-05456700},
-	abstract = {In this work, we address the scheduling of sporadic tasks on a uniprocessor under preemptive fixed-priority policies, incorporating both starting and resuming delays. Starting and resuming delays represent the extra time, relative to the task's execution time, necessary to first start a job or to resume it after a preemption. In this study, we consider that these delays are introduced by a protection mechanism executed by each task before starting and resuming, yet the theoretical results are general and apply for other sources of delays. For this model, there is no response time analysis in the literature. We propose the first schedulability test based on a response time analysis, which computes an upper bound on the worst-case response time. We then discuss and evaluate the pessimism of the proposed schedulability test and the worst-case response time bound.},
-	urldate = {2026-04-18},
-	booktitle = {33rd {International} {Conference} on {Real}-{Time} {Networks} and {Systems} ({RTNS} '25)},
-	author = {Barral, Hadrien and Abdeddaïm, Yasmina and Masson, Damien and Goossens, Joël},
-	month = oct,
-	year = {2025},
-	keywords = {Fixed priority scheduling, Fixed priority scheduling response time analysis security, response time analysis, security},
-	file = {HAL PDF Full Text:C\:\\Users\\basil\\Zotero\\storage\\5N75FC8R\\Barral et al. - 2025 - Response time analysis for sporadic tasks in uniprocessor fixed-priority scheduling with starting an.pdf:application/pdf},
+% ===== DONNÉES STATISTIQUES =====
+@misc{eurostat_migr_eipre,
+  author       = {{Eurostat}},
+  title        = {{Third-country nationals found to be illegally present (migr_eipre)}},
+  howpublished = {Eurostat Data Browser, jeu de données statistique},
+  url          = {https://ec.europa.eu/eurostat/databrowser/view/migr_eipre/default/table?lang=en},
+  note         = {Extraction personnalisée utilisée dans le projet : https://ec.europa.eu/eurostat/databrowser/view/migr_eipre__custom_24484187/default/table ; consultation le 27 novembre 2026}
 }
 
-@inproceedings{goossens_simulation_2022,
-	address = {New York, NY, USA},
-	series = {{RTNS} '22},
-	title = {Simulation intervals for uniprocessor real-time schedulers with preemption delay},
-	isbn = {978-1-4503-9650-9},
-	url = {https://dl.acm.org/doi/10.1145/3534879.3534887},
-	doi = {10.1145/3534879.3534887},
-	abstract = {In the framework of embedded and time-critical systems we consider the scheduling of preemptive real-time periodic tasks upon uniprocessor. We consider the notion of simulation interval, a finite time interval such that the schedule starts to repeat in a cycle. The interest is to design a time interval which includes all possible (reachable) schedule states. Our study focuses on a model where preemption costs are explicitly considered, i.e., the time required by the real-time operating system (rtos) or the hardware to load the context of execution of preempted jobs. We present and prove correct a simulation interval for asynchronous arbitrary deadline tasks with preemption delays and that holds for any deterministic and memoryless scheduler upon uniprocessor. This first contribution is valid for all schedulers one can imagine (but deterministic and memoryless), including non-preemptive schedulers, not work-conserving, not necessarily popular “real-time” ones. We then consider a particular case, regarding the preemption delays, for edf scheduling for which we extend the work of Leung and Merrill\&nbsp;[24] showing that [0, Omax  + 2 · H) is a simulation interval (significantly shorter than the general result). We also show that [0, Sn + H) from\&nbsp;[16] remains a simulation interval for fixed task priority (ftp) schedulers. Before concluding we open a discussion on the scope of the results, paths for reducing pessimism as well as other potential results opened by this work.},
-	urldate = {2026-04-18},
-	booktitle = {Proceedings of the 30th {International} {Conference} on {Real}-{Time} {Networks} and {Systems}},
-	publisher = {Association for Computing Machinery},
-	author = {Goossens, Joel and Masson, Damien},
-	month = jun,
-	year = {2022},
-	pages = {36--45},
-	file = {Full Text PDF:C\:\\Users\\basil\\Zotero\\storage\\6SC5ISZB\\Goossens and Masson - 2022 - Simulation intervals for uniprocessor real-time schedulers with preemption delay.pdf:application/pdf},
+@misc{eurostat_migr_pop1ctz,
+  author       = {{Eurostat}},
+  title        = {{Population on 1 January by age, sex and citizenship (migr_pop1ctz)}},
+  howpublished = {Eurostat Data Browser, jeu de données statistique},
+  url          = {https://ec.europa.eu/eurostat/databrowser/view/migr_pop1ctz/default/table?lang=en},
+  note         = {Extraction personnalisée utilisée dans le projet : https://ec.europa.eu/eurostat/databrowser/view/migr_pop1ctz__custom_24484552/default/table ; consultation le 27 novembre 2026}
 }
 
-@misc{freertos,
-	title = {{FreeRTOS} documentation - {FreeRTOS}™},
-	url = {https://freertos.org/Documentation/00-Overview},
-	urldate = {2026-04-17},
-	file = {Snapshot:C\:\\Users\\basil\\Zotero\\storage\\CNRG45M5\\00-Overview.html:text/html},
+% ===== IA, FRONTIÈRES ET POLITIQUES MIGRATOIRES =====
+@article{beduschi2021,
+  author  = {Beduschi, Ana},
+  title   = {International migration management in the age of artificial intelligence},
+  journal = {Migration Studies},
+  year    = {2021},
+  volume  = {9},
+  number  = {3},
+  pages   = {576--596},
+  doi     = {10.1093/migration/mnaa003},
+  url     = {https://doi.org/10.1093/migration/mnaa003}
 }
 
-@misc{wiki.linuxfoundation,
-	title = {realtime:start [{Wiki}]},
-	url = {https://wiki.linuxfoundation.org/realtime/start},
-	urldate = {2026-04-17},
-	file = {realtime\:start [Wiki]:C\:\\Users\\basil\\Zotero\\storage\\2LBRQEZ6\\start.html:text/html},
+@article{molnar2019,
+  author  = {Molnar, Petra},
+  title   = {Technology on the margins: {AI} and global migration management from a human rights perspective},
+  journal = {Cambridge International Law Journal},
+  year    = {2019},
+  volume  = {8},
+  number  = {2},
+  pages   = {305--330},
+  doi     = {10.4337/cilj.2019.02.07},
+  url     = {https://doi.org/10.4337/cilj.2019.02.07}
 }
 
-@misc{ubuntu,
-	title = {Installing a real-time {Ubuntu} kernel on a {Raspberry} {Pi} - {Project} {Discussion} / {Kernel} - {Ubuntu} {Community} {Hub}},
-	url = {https://discourse.ubuntu.com/t/installing-a-real-time-ubuntu-kernel-on-a-raspberry-pi/34833},
-	urldate = {2026-04-17},
-	file = {Installing a real-time Ubuntu kernel on a Raspberry Pi - Project Discussion / Kernel - Ubuntu Community Hub:C\:\\Users\\basil\\Zotero\\storage\\BDPQT8BG\\34833.html:text/html},
+@article{nalbandian2022,
+  author  = {Nalbandian, Lucia},
+  title   = {An eye for an {‘I’:} a critical assessment of artificial intelligence tools in migration and asylum management},
+  journal = {Comparative Migration Studies},
+  year    = {2022},
+  volume  = {10},
+  number  = {32},
+  doi     = {10.1186/s40878-022-00305-0},
+  url     = {https://doi.org/10.1186/s40878-022-00305-0}
 }
 
-@misc{redhat,
-	title = {Chapter 4. {Setting} up real-time virtual machines {\textbar} {Configuring} virtualization on {RHEL} 10 for {Real} {Time} {\textbar} {Red} {Hat} {Enterprise} {Linux} for {Real} {Time} {\textbar} 10 {\textbar} {Red} {Hat} {Documentation}},
-	url = {https://docs.redhat.com/en/documentation/red_hat_enterprise_linux_for_real_time/10/html/configuring_virtualization_on_rhel_10_for_real_time/setting-up-real-time-virtual-machines},
-	urldate = {2026-04-17},
-	file = {Chapter 4. Setting up real-time virtual machines | Configuring virtualization on RHEL 10 for Real Time | Red Hat Enterprise Linux for Real Time | 10 | Red Hat Documentation:C\:\\Users\\basil\\Zotero\\storage\\ZAFX3SLS\\setting-up-real-time-virtual-machines.html:text/html},
+@article{vavoula2021,
+  author  = {Vavoula, Niovi},
+  title   = {Artificial Intelligence ({AI}) at {Schengen} Borders: Automated Processing, Algorithmic Profiling and Facial Recognition in the Era of Techno-Solutionism},
+  journal = {European Journal of Migration and Law},
+  year    = {2021},
+  volume  = {23},
+  number  = {4},
+  pages   = {457--484},
+  doi     = {10.1163/15718166-12340114},
+  url     = {https://doi.org/10.1163/15718166-12340114}
 }
 
-@misc{GeeksforGeeks,
-	title = {Difference between {Periodic} and {Sporadic} {Real}-time {Tasks}},
-	url = {https://www.geeksforgeeks.org/operating-systems/difference-between-periodic-and-sporadic-real-time-tasks/},
-	abstract = {Your All-in-One Learning Portal: GeeksforGeeks is a comprehensive educational platform that empowers learners across domains-spanning computer science and programming, school education, upskilling, commerce, software tools, competitive exams, and more.},
-	language = {en},
-	urldate = {2026-04-27},
-	journal = {GeeksforGeeks},
-	note = {Section: Operating Systems},
-	file = {Snapshot:C\:\\Users\\basil\\Zotero\\storage\\XKAD5QQF\\difference-between-periodic-and-sporadic-real-time-tasks.html:text/html},
+@article{derave2022,
+  author  = {Derave, Charly and Genicot, Nathan and Hetmanska, Nina},
+  title   = {The Risks of Trustworthy Artificial Intelligence: The Case of the European Travel Information and Authorisation System},
+  journal = {European Journal of Risk Regulation},
+  year    = {2022},
+  volume  = {13},
+  number  = {3},
+  pages   = {389--420},
+  doi     = {10.1017/err.2022.5},
+  url     = {https://doi.org/10.1017/err.2022.5}
+}
+
+@article{forti2024,
+  author  = {Forti, Mirko},
+  title   = {Addressing Algorithmic Errors in Data-Driven Border Control Procedures},
+  journal = {German Law Journal},
+  year    = {2024},
+  volume  = {25},
+  number  = {4},
+  pages   = {635--645},
+  doi     = {10.1017/glj.2023.102},
+  url     = {https://doi.org/10.1017/glj.2023.102}
+}
+
+@article{stewart2024,
+  author  = {Stewart, Ludivine Sarah},
+  title   = {The regulation of {AI}-based migration technologies under the {EU AI Act}: (Still) operating in the shadows?},
+  journal = {European Law Journal},
+  year    = {2024},
+  volume  = {30},
+  number  = {1-2},
+  pages   = {122--135},
+  doi     = {10.1111/eulj.12516},
+  url     = {https://doi.org/10.1111/eulj.12516}
+}
+
+@article{rinaldi_teo2025,
+  author  = {Rinaldi, Alberto and Teo, Sue Anne},
+  title   = {The Use of Artificial Intelligence Technologies in Border and Migration Control and the Subtle Erosion of Human Rights},
+  journal = {International and Comparative Law Quarterly},
+  year    = {2025},
+  volume  = {74},
+  number  = {1},
+  pages   = {61--89},
+  doi     = {10.1017/S0020589325000090},
+  url     = {https://doi.org/10.1017/S0020589325000090}
+}
+
+% ===== PROFILAGE, DISCRIMINATIONS ET ÉQUITÉ =====
+@article{leese2014,
+  author  = {Leese, Matthias},
+  title   = {The new profiling: Algorithms, black boxes, and the failure of anti-discriminatory safeguards in the {European Union}},
+  journal = {Security Dialogue},
+  year    = {2014},
+  volume  = {45},
+  number  = {5},
+  pages   = {494--511},
+  doi     = {10.1177/0967010614544204},
+  url     = {https://doi.org/10.1177/0967010614544204}
+}
+
+@article{barocas_selbst2016,
+  author  = {Barocas, Solon and Selbst, Andrew D.},
+  title   = {Big Data's Disparate Impact},
+  journal = {California Law Review},
+  year    = {2016},
+  volume  = {104},
+  number  = {3},
+  pages   = {671--732},
+  doi     = {10.15779/Z38bg31},
+  url     = {https://doi.org/10.15779/Z38bg31}
+}
+
+@article{wachter2021,
+  author  = {Wachter, Sandra and Mittelstadt, Brent and Russell, Chris},
+  title   = {Why fairness cannot be automated: Bridging the gap between {EU} non-discrimination law and {AI}},
+  journal = {Computer Law and Security Review},
+  year    = {2021},
+  volume  = {41},
+  pages   = {105567},
+  doi     = {10.1016/j.clsr.2021.105567},
+  url     = {https://doi.org/10.1016/j.clsr.2021.105567}
+}
+
+@inproceedings{selbst2019,
+  author    = {Selbst, Andrew D. and boyd, danah and Friedler, Sorelle A. and Venkatasubramanian, Suresh and Vertesi, Janet},
+  title     = {Fairness and Abstraction in Sociotechnical Systems},
+  booktitle = {Proceedings of the Conference on Fairness, Accountability, and Transparency},
+  year      = {2019},
+  pages     = {59--68},
+  publisher = {ACM},
+  doi       = {10.1145/3287560.3287598},
+  url       = {https://doi.org/10.1145/3287560.3287598}
+}
+
+% ===== QUALITÉ DES DONNÉES ET LIMITES STATISTIQUES =====
+@inproceedings{jacobs_wallach2021,
+  author    = {Jacobs, Abigail Z. and Wallach, Hanna},
+  title     = {Measurement and Fairness},
+  booktitle = {Proceedings of the 2021 ACM Conference on Fairness, Accountability, and Transparency},
+  year      = {2021},
+  pages     = {375--385},
+  publisher = {ACM},
+  doi       = {10.1145/3442188.3445901},
+  url       = {https://doi.org/10.1145/3442188.3445901}
+}
+
+@inproceedings{suresh_guttag2021,
+  author    = {Suresh, Harini and Guttag, John},
+  title     = {A Framework for Understanding Sources of Harm throughout the Machine Learning Life Cycle},
+  booktitle = {Proceedings of the ACM Conference on Equity and Access in Algorithms, Mechanisms, and Optimization},
+  year      = {2021},
+  publisher = {ACM},
+  doi       = {10.1145/3465416.3483305},
+  url       = {https://doi.org/10.1145/3465416.3483305}
+}
+
+@inproceedings{ensign2018,
+  author    = {Ensign, Danielle and Friedler, Sorelle A. and Neville, Scott and Scheidegger, Carlos and Venkatasubramanian, Suresh},
+  title     = {Runaway Feedback Loops in Predictive Policing},
+  booktitle = {Proceedings of the 1st Conference on Fairness, Accountability and Transparency},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {81},
+  year      = {2018},
+  pages     = {160--171},
+  publisher = {PMLR},
+  url       = {https://proceedings.mlr.press/v81/ensign18a.html}
+}
+
+@inproceedings{lakkaraju2017,
+  author    = {Lakkaraju, Himabindu and Kleinberg, Jon and Leskovec, Jure and Ludwig, Jens and Mullainathan, Sendhil},
+  title     = {The Selective Labels Problem: Evaluating Algorithmic Predictions in the Presence of Unobservables},
+  booktitle = {Proceedings of the 23rd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining},
+  year      = {2017},
+  publisher = {ACM},
+  doi       = {10.1145/3097983.3098066},
+  url       = {https://doi.org/10.1145/3097983.3098066}
+}
+
+% ===== RAPPORT DE RECHERCHE MIrreM =====
+@techreport{siruno2024,
+  author      = {Siruno, Lalaine and Leerkes, Arjen and others},
+  title       = {{MIrreM Working Paper on Irregular Migration Flows}},
+  institution = {Measuring Irregular Migration and Related Policies (MIrreM)},
+  type        = {Working paper},
+  number      = {D5.1},
+  year        = {2024},
+  doi         = {10.5281/zenodo.10702228},
+  url         = {https://zenodo.org/records/10702228},
+  note        = {Rapport de recherche, distinct d'un article de revue à comité de lecture}
 }
