@@ -14,7 +14,7 @@ from src.model import read_training, choose_rows, summarize_cohort, predicted_pc
 
 ROOT=Path(__file__).resolve().parent
 DATA=ROOT/'data'
-st.set_page_config(page_title='EU Migration Data Lab',page_icon='◉',layout='wide',
+st.set_page_config(page_title='Laboratoire de données migratoires de l’UE',page_icon='◉',layout='wide',
                    initial_sidebar_state='expanded')
 st.markdown('''<style>
   .block-container {max-width: 1230px; padding-top: 2.1rem}
@@ -40,16 +40,16 @@ def get_rows(): return read_training(DATA/'training.csv')
 
 if sklearn.__version__ != '1.8.0':
     st.error(
-        f"The bundled pretrained model requires scikit-learn 1.8.0, "
-        f"but this environment has {sklearn.__version__}. "
-        "In your activated virtual environment, run "
+        f"Le modèle préentraîné fourni nécessite scikit-learn 1.8.0, "
+        f"mais cet environnement utilise la version {sklearn.__version__}. "
+        "Dans votre environnement virtuel activé, exécutez "
         "`python -m pip install --force-reinstall scikit-learn==1.8.0` "
-        "and restart Streamlit."
+        "puis redémarrez Streamlit."
     )
     st.stop()
 
 if not (DATA/'training.csv').exists() or not (DATA/'model.joblib').exists():
-    st.error('Training artifacts missing. Run `python train.py` first.')
+    st.error('Les fichiers d’entraînement sont manquants. Exécutez d’abord `python train.py`.')
     st.stop()
 rows=get_rows(); models=get_model()
 summary=json.loads((DATA/'training_summary.json').read_text(encoding='utf-8'))
@@ -57,44 +57,261 @@ country_options=sorted({r['country'] for r in rows})
 origin_options=sorted({r['citizenship'] for r in rows if r['citizenship']!='Total'})
 years=sorted({r['year'] for r in rows},reverse=True)
 
+# French display labels only; original values remain unchanged for filtering and modelling.
+DISPLAY_FR = {'18–34': '18 à 34 ans',
+ '35+': '35 ans ou plus',
+ 'Afghanistan': 'Afghanistan',
+ 'Africa': 'Afrique',
+ 'Albania': 'Albanie',
+ 'Algeria': 'Algérie',
+ 'All': 'Tous',
+ 'All ages': 'Tous âges confondus',
+ 'All third-country citizenships': 'Toutes les nationalités de pays tiers',
+ 'Americas': 'Amériques',
+ 'Andorra': 'Andorre',
+ 'Angola': 'Angola',
+ 'Antigua and Barbuda': 'Antigua-et-Barbuda',
+ 'Argentina': 'Argentine',
+ 'Armenia': 'Arménie',
+ 'Asia': 'Asie',
+ 'Australia': 'Australie',
+ 'Austria': 'Autriche',
+ 'Azerbaijan': 'Azerbaïdjan',
+ 'Bahamas': 'Bahamas',
+ 'Bahrain': 'Bahreïn',
+ 'Bangladesh': 'Bangladesh',
+ 'Barbados': 'Barbade',
+ 'Belarus': 'Biélorussie',
+ 'Belgium': 'Belgique',
+ 'Belize': 'Belize',
+ 'Benin': 'Bénin',
+ 'Bhutan': 'Bhoutan',
+ 'Bolivia': 'Bolivie',
+ 'Bosnia and Herzegovina': 'Bosnie-Herzégovine',
+ 'Botswana': 'Botswana',
+ 'Brazil': 'Brésil',
+ 'Brunei Darussalam': 'Brunei',
+ 'Bulgaria': 'Bulgarie',
+ 'Burkina Faso': 'Burkina Faso',
+ 'Burundi': 'Burundi',
+ 'Cabo Verde': 'Cap-Vert',
+ 'Cambodia': 'Cambodge',
+ 'Cameroon': 'Cameroun',
+ 'Canada': 'Canada',
+ 'Central African Republic': 'République centrafricaine',
+ 'Chad': 'Tchad',
+ 'Chile': 'Chili',
+ 'China': 'Chine',
+ 'Colombia': 'Colombie',
+ 'Comoros': 'Comores',
+ 'Congo': 'Congo-Brazzaville',
+ 'Costa Rica': 'Costa Rica',
+ 'Croatia': 'Croatie',
+ 'Cuba': 'Cuba',
+ 'Cyprus': 'Chypre',
+ 'Czech Republic': 'République tchèque',
+ 'Czechia': 'Tchéquie',
+ 'Côte d’Ivoire': 'Côte d’Ivoire',
+ 'Democratic Republic of the Congo': 'Congo-Kinshasa',
+ 'Denmark': 'Danemark',
+ 'Djibouti': 'Djibouti',
+ 'Dominica': 'Dominique',
+ 'Dominican Republic': 'République dominicaine',
+ 'Ecuador': 'Équateur',
+ 'Egypt': 'Égypte',
+ 'El Salvador': 'Salvador',
+ 'Equatorial Guinea': 'Guinée équatoriale',
+ 'Eritrea': 'Érythrée',
+ 'Estonia': 'Estonie',
+ 'Eswatini': 'Eswatini',
+ 'Ethiopia': 'Éthiopie',
+ 'Europe': 'Europe',
+ 'Federated States of Micronesia': 'Micronésie',
+ 'Females': 'Femmes',
+ 'Fiji': 'Fidji',
+ 'Finland': 'Finlande',
+ 'France': 'France',
+ 'Gabon': 'Gabon',
+ 'Gambia, The': 'Gambie',
+ 'Georgia': 'Géorgie',
+ 'Germany': 'Allemagne',
+ 'Ghana': 'Ghana',
+ 'Greece': 'Grèce',
+ 'Grenada': 'Grenade',
+ 'Guatemala': 'Guatemala',
+ 'Guinea': 'Guinée',
+ 'Guinea-Bissau': 'Guinée-Bissau',
+ 'Guyana': 'Guyana',
+ 'Haiti': 'Haïti',
+ 'Holy See': 'Saint-Siège',
+ 'Honduras': 'Honduras',
+ 'Hungary': 'Hongrie',
+ 'India': 'Inde',
+ 'Indonesia': 'Indonésie',
+ 'Iran': 'Iran',
+ 'Iraq': 'Irak',
+ 'Ireland': 'Irlande',
+ 'Israel': 'Israël',
+ 'Italy': 'Italie',
+ 'Jamaica': 'Jamaïque',
+ 'Japan': 'Japon',
+ 'Jordan': 'Jordanie',
+ 'Kazakhstan': 'Kazakhstan',
+ 'Kenya': 'Kenya',
+ 'Kiribati': 'Kiribati',
+ 'Kosovo*': 'Kosovo*',
+ 'Kuwait': 'Koweït',
+ 'Kyrgyzstan': 'Kirghizstan',
+ 'Laos': 'Laos',
+ 'Latvia': 'Lettonie',
+ 'Lebanon': 'Liban',
+ 'Lesotho': 'Lesotho',
+ 'Liberia': 'Liberia',
+ 'Libya': 'Libye',
+ 'Lithuania': 'Lituanie',
+ 'Luxembourg': 'Luxembourg',
+ 'Madagascar': 'Madagascar',
+ 'Malawi': 'Malawi',
+ 'Malaysia': 'Malaisie',
+ 'Maldives': 'Maldives',
+ 'Males': 'Hommes',
+ 'Mali': 'Mali',
+ 'Malta': 'Malte',
+ 'Marshall Islands': 'Îles Marshall',
+ 'Mauritania': 'Mauritanie',
+ 'Mauritius': 'Maurice',
+ 'Men': 'Hommes',
+ 'Mexico': 'Mexique',
+ 'Moldova': 'Moldavie',
+ 'Monaco': 'Monaco',
+ 'Mongolia': 'Mongolie',
+ 'Montenegro': 'Monténégro',
+ 'Morocco': 'Maroc',
+ 'Mozambique': 'Mozambique',
+ 'Myanmar/Burma': 'Myanmar/Birmanie',
+ 'Namibia': 'Namibie',
+ 'Nepal': 'Népal',
+ 'Netherlands': 'Pays-Bas',
+ 'Netherlands (the)': 'Pays-Bas',
+ 'New Zealand': 'Nouvelle-Zélande',
+ 'Nicaragua': 'Nicaragua',
+ 'Niger': 'Niger',
+ 'Nigeria': 'Nigeria',
+ 'North Korea': 'Corée du Nord',
+ 'North Macedonia': 'Macédoine du Nord',
+ 'Oceania': 'Océanie',
+ 'Oman': 'Oman',
+ 'Other regions': 'Autres régions',
+ 'Pakistan': 'Pakistan',
+ 'Palau': 'Palaos',
+ 'Palestine*': 'Palestine*',
+ 'Panama': 'Panama',
+ 'Papua New Guinea': 'Papouasie-Nouvelle-Guinée',
+ 'Paraguay': 'Paraguay',
+ 'Peru': 'Pérou',
+ 'Philippines': 'Philippines',
+ 'Poland': 'Pologne',
+ 'Portugal': 'Portugal',
+ 'Qatar': 'Qatar',
+ 'Recognised non-citizens': 'Non-ressortissants reconnus',
+ 'Romania': 'Roumanie',
+ 'Russia': 'Russie',
+ 'Rwanda': 'Rwanda',
+ 'Saint Kitts and Nevis': 'Saint-Christophe-et-Niévès',
+ 'Saint Lucia': 'Sainte-Lucie',
+ 'Saint Vincent and the Grenadines': 'Saint-Vincent-et-les Grenadines',
+ 'Samoa': 'Samoa',
+ 'San Marino': 'Saint-Marin',
+ 'Saudi Arabia': 'Arabie saoudite',
+ 'Senegal': 'Sénégal',
+ 'Seychelles': 'Seychelles',
+ 'Sierra Leone': 'Sierra Leone',
+ 'Singapore': 'Singapour',
+ 'Slovakia': 'Slovaquie',
+ 'Slovenia': 'Slovénie',
+ 'Solomon Islands': 'Îles Salomon',
+ 'Somalia': 'Somalie',
+ 'South Africa': 'Afrique du Sud',
+ 'Spain': 'Espagne',
+ 'Sri Lanka': 'Sri Lanka',
+ 'Stateless': 'Apatrides',
+ 'Sudan': 'Soudan',
+ 'Suriname': 'Suriname',
+ 'Sweden': 'Suède',
+ 'Syria': 'Syrie',
+ 'São Tomé and Príncipe': 'Sao Tomé-et-Principe',
+ 'Taiwan': 'Taïwan',
+ 'Tajikistan': 'Tadjikistan',
+ 'Tanzania': 'Tanzanie',
+ 'Thailand': 'Thaïlande',
+ 'Timor-Leste': 'Timor oriental',
+ 'Togo': 'Togo',
+ 'Tonga': 'Tonga',
+ 'Total': 'Total',
+ 'Trinidad and Tobago': 'Trinité-et-Tobago',
+ 'Tunisia': 'Tunisie',
+ 'Turkmenistan': 'Turkménistan',
+ 'Tuvalu': 'Tuvalu',
+ 'Türkiye': 'Turquie',
+ 'Uganda': 'Ouganda',
+ 'Ukraine': 'Ukraine',
+ 'Under 18': 'Moins de 18 ans',
+ 'United Arab Emirates': 'Émirats arabes unis',
+ 'United Kingdom': 'Royaume-Uni',
+ 'United States': 'États-Unis',
+ 'Unknown': 'Inconnu',
+ 'Unspecified': 'Non précisé',
+ 'Uruguay': 'Uruguay',
+ 'Uzbekistan': 'Ouzbékistan',
+ 'Vanuatu': 'Vanuatu',
+ 'Venezuela': 'Venezuela',
+ 'Viet Nam': 'Viêt Nam',
+ 'Western Sahara': 'Sahara occidental',
+ 'Women': 'Femmes',
+ 'Yemen': 'Yémen',
+ 'Zambia': 'Zambie',
+ 'Zimbabwe': 'Zimbabwe'}
+
+def display_fr(value):
+    return DISPLAY_FR.get(value, value)
+
 with st.sidebar:
-    st.markdown('### Explorer settings')
-    st.caption('Leave categories unrestricted to aggregate over all available records.')
-    age=st.selectbox('Age group', ['All ages','Under 18','18–34','35+'],index=0)
-    sex=st.selectbox('Sex', ['All','Males','Females'])
-    country=st.selectbox('Reporting country', ['All']+country_options)
-    origin=st.selectbox('Citizenship', ['All third-country citizenships']+origin_options)
-    year=st.select_slider('Reference year', options=sorted(years), value=max(years))
+    st.markdown('### Paramètres de l’explorateur')
+    st.caption('Laissez les catégories sans restriction pour agréger toutes les données disponibles.')
+    age=st.selectbox('Tranche d’âge', ['All ages','Under 18','18–34','35+'],index=0,format_func=display_fr)
+    sex=st.selectbox('Sexe', ['All','Males','Females'],format_func=display_fr)
+    country=st.selectbox('Pays déclarant', ['All']+country_options,format_func=display_fr)
+    origin=st.selectbox('Nationalité', ['All third-country citizenships']+origin_options,format_func=display_fr)
+    year=st.select_slider('Année de référence', options=sorted(years), value=max(years))
     st.divider()
-    st.caption('Eurostat • 2018–2025 • 27 EU reporting countries')
+    st.caption('Eurostat • 2018–2025 • 27 pays déclarants de l’UE')
 
 citizenship='Total' if origin=='All third-country citizenships' else origin
 selected=choose_rows(rows,age,sex,country,citizenship,year)
 observed=summarize_cohort(selected)
 model_pct=predicted_pct(selected,models) if selected else None
 
-st.markdown('<div class="eyebrow">EU MIGRATION DATA LAB / RESEARCH PREVIEW</div>',unsafe_allow_html=True)
-st.title('Migration detection-rate explorer')
-st.write('Explore annual **detected irregular-presence cases** relative to a population benchmark, using a trained gradient-boosting model and two Eurostat datasets.')
+st.title('Explorateur des taux de détection de séjour irrégulier')
+st.write('Explorez les **cas de séjour irrégulier détectés chaque année** par rapport à une population de référence, à l’aide d’un modèle entraîné par boosting de gradient et de deux jeux de données Eurostat.')
 if observed is None:
-    st.warning('No matched data exist for this combination. Try another year, reporting country or citizenship.')
+    st.warning('Aucune donnée correspondante pour cette combinaison. Essayez une autre année, un autre pays déclarant ou une autre nationalité.')
     st.stop()
 
-st.markdown(f'''<div class="hero"><span class="pill">MODEL ESTIMATE · AGGREGATE</span>
-<div class="small">Estimated annual detections / population benchmark</div>
+st.markdown(f'''<div class="hero"><span class="pill">ESTIMATION DU MODÈLE</span>
+
 <div class="n">{model_pct:.3f}%</div>
-<div class="small">≈ {model_pct*1000:,.0f} modeled detections per 100,000 population-benchmark members</div>
+<div class="small">Estimation des détections annuelles / population de référence</div>
 </div>''',unsafe_allow_html=True)
 
 c1,c2,c3=st.columns(3)
-c1.metric('Observed benchmark',f"{observed['rate_pct']:.3f}%",help='Annual detections divided by resident population benchmark; not a prevalence probability')
-c2.metric('Recorded detections',f"{observed['detections']:,}")
-c3.metric('Population benchmark',f"{observed['population_proxy']:,}")
-st.caption(f"Based on {observed['n_cells']:,} matched records across {observed['countries']} reporting countries. Missing observations are not counted as zero.")
+c1.metric('Taux observé',f"{observed['rate_pct']:.3f}%",help='Détections annuelles divisées par la population résidente de référence ; il ne s’agit pas d’une probabilité de prévalence')
+c2.metric('Détections enregistrées',f"{observed['detections']:,}")
+c3.metric('Population de référence',f"{observed['population_proxy']:,}")
+st.caption(f"Sur la base de {observed['n_cells']:,} enregistrements correspondants dans {observed['countries']} pays déclarants. Les observations manquantes ne sont pas comptabilisées comme des zéros.")
 if observed['age_approximate']:
-    st.info('**Approximate age denominator:** Population ages 15–64 were split uniformly into single ages to match the irregular-presence age groups. This assumption may be inaccurate. Download finer age bands for a stronger study.')
+    st.info('**Dénominateur approximatif par âge :** la population âgée de 15 à 64 ans a été répartie uniformément par année d’âge afin de correspondre aux tranches d’âge des données de séjour irrégulier. Cette hypothèse peut être inexacte. Téléchargez des tranches d’âge plus fines pour une étude plus robuste.')
 
-st.markdown('### Trend across years')
+st.markdown('### Évolution au fil des années')
 points=[]
 for yr in sorted(years):
     same=choose_rows(rows,age,sex,country,citizenship,yr)
@@ -103,18 +320,18 @@ for yr in sorted(years):
         points.append((yr,agg['rate_pct'],predicted_pct(same,models)))
 if points:
     graph=go.Figure()
-    graph.add_trace(go.Scatter(x=[x[0] for x in points],y=[x[1] for x in points],mode='lines+markers',name='Recorded benchmark',line={'color':'#296646','width':3}))
-    graph.add_trace(go.Scatter(x=[x[0] for x in points],y=[x[2] for x in points],mode='lines+markers',name='Model estimate',line={'color':'#9cb9a1','width':3,'dash':'dash'}))
+    graph.add_trace(go.Scatter(x=[x[0] for x in points],y=[x[1] for x in points],mode='lines+markers',name='Taux observé',line={'color':'#296646','width':3}))
+    graph.add_trace(go.Scatter(x=[x[0] for x in points],y=[x[2] for x in points],mode='lines+markers',name='Estimation du modèle',line={'color':'#9cb9a1','width':3,'dash':'dash'}))
     graph.update_layout(height=325,margin=dict(l=10,r=15,t=15,b=20),
-        yaxis_title='Detections per population benchmark (%)',xaxis_title='Year',
+        yaxis_title='Détections / population de référence (%)',xaxis_title='Année',
         xaxis={'dtick':1},paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)',
         legend=dict(orientation='h',y=1.15),hovermode='x unified')
     st.plotly_chart(graph,use_container_width=True)
 
-st.markdown('### Compare age groups')
-st.caption('Each bar is the total observed detection / population benchmark, '
-           'split by the sex recorded in the source data. '
-           'Hover to see both the contribution to the total and the sex-specific rate.')
+st.markdown('### Comparaison des tranches d’âge')
+st.caption('Chaque barre représente le taux total de détection observé par rapport à la population de référence, '
+           'ventilé selon le sexe indiqué dans les données sources. '
+           'Survolez les barres pour voir la contribution au total et le taux propre à chaque sexe.')
 
 # Use the full sex breakdown regardless of the sidebar's sex selection so
 # that women and men can always be compared on the same chart.
@@ -165,12 +382,12 @@ for band in AGE_BANDS:
     })
 
 if age_profiles:
-    age_names = [p['age'] for p in age_profiles]
+    age_names = [display_fr(p['age']) for p in age_profiles]
     bars = go.Figure()
     for label, _sex, color in SEX_SEGMENTS:
         segment_values = [p['segments'][label]['contribution_pct'] for p in age_profiles]
         bars.add_trace(go.Bar(
-            name=label,
+            name=display_fr(label),
             x=age_names,
             y=segment_values,
             marker_color=color,
@@ -186,17 +403,17 @@ if age_profiles:
                 p['total_pct'],
             ] for p in age_profiles],
             hovertemplate=(
-                '<b>%{x} · ' + label + '</b><br>'
-                'Contribution to total rate: %{y:.3f}%<br>'
-                'Recorded detections: %{customdata[0]:,.0f}<br>'
-                'Sex-specific population benchmark: %{customdata[1]:,.0f}<br>'
-                'Sex-specific rate: %{customdata[2]:.3f}%<br>'
-                'Full age-group rate: %{customdata[3]:.3f}%'
+                '<b>%{x} · ' + display_fr(label) + '</b><br>'
+                'Contribution au taux total : %{y:.3f}%<br>'
+                'Détections enregistrées: %{customdata[0]:,.0f}<br>'
+                'Population de référence par sexe : %{customdata[1]:,.0f}<br>'
+                'Taux propre à chaque sexe : %{customdata[2]:.3f}%<br>'
+                'Taux total de la tranche d’âge : %{customdata[3]:.3f}%'
                 '<extra></extra>'
             ) if label != 'Unknown' else (
-                '<b>%{x} · Unknown</b><br>'
-                'Contribution to total rate: %{y:.3f}%<br>'
-                'Recorded detections: %{customdata[0]:,.0f}'
+                '<b>%{x} · Inconnu</b><br>'
+                'Contribution au taux total : %{y:.3f}%<br>'
+                'Détections enregistrées: %{customdata[0]:,.0f}'
                 '<extra></extra>'
             ),
         ))
@@ -206,7 +423,7 @@ if age_profiles:
         x=age_names,
         y=[p['total_pct'] for p in age_profiles],
         mode='text',
-        text=[f"<b>{p['total_pct']:.2f}% total</b>" for p in age_profiles],
+        text=[f"<b>{p['total_pct']:.2f}% au total</b>" for p in age_profiles],
         textposition='top center',
         textfont=dict(color='#243f37', size=13),
         showlegend=False,
@@ -218,7 +435,7 @@ if age_profiles:
         bargap=0.47,
         height=335,
         margin=dict(l=10, r=15, t=42, b=20),
-        yaxis=dict(title='Observed detection benchmark (%)', range=[0, ymax * 1.25] if ymax > 0 else [0, 1]),
+        yaxis=dict(title='Taux de détection observé (%)', range=[0, ymax * 1.25] if ymax > 0 else [0, 1]),
         xaxis=dict(title=None),
         legend=dict(orientation='h', y=1.19, x=0, title=None),
         paper_bgcolor='rgba(0,0,0,0)',
@@ -227,16 +444,16 @@ if age_profiles:
     )
     st.plotly_chart(bars, use_container_width=True)
     st.caption(
-        'The coloured segments add up to the full bar because each uses the '
-        'same age-group population denominator. Sex-specific detection rates '
-        'use separate denominators and are shown on hover, not added together. '
-        'The supplied Eurostat export contains only male/female categories; '
-        'Unknown is therefore unavailable, not known to be zero. '
-        'Age-specific population denominators are approximate. '
-        'These are aggregate detection rates, not individual legal-status probabilities.'
+        'Les segments colorés forment la barre entière, car chacun utilise le '
+        'même dénominateur de population pour la tranche d’âge. Les taux de détection propres à chaque sexe '
+        'utilisent des dénominateurs distincts et apparaissent au survol, sans être additionnés. '
+        'L’export Eurostat fourni ne contient que les catégories masculine et féminine ; '
+        'la catégorie Inconnu est donc indisponible, et non nécessairement égale à zéro. '
+        'Les dénominateurs de population par âge sont approximatifs. '
+        'Il s’agit de taux de détection agrégés, et non de probabilités individuelles de statut juridique.'
     )
 else:
-    st.info('No age-group data are available for this selection.')
+    st.info('Aucune donnée par tranche d’âge n’est disponible pour cette sélection.')
 
 # Covers the citizenship labels occurring in the provided Eurostat training.csv.
 # Borderline/transcontinental locations are assigned to a single display region
@@ -439,7 +656,7 @@ CITIZENSHIP_ISO3 = {
 }
 
 LINKED_CHART_HTML = r"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8"/>
+<html lang="fr"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   :root {font-family:Arial, sans-serif;color:#273d32}
@@ -483,36 +700,37 @@ LINKED_CHART_HTML = r"""<!doctype html>
 <script>/* __PLOTLY_JS__ */</script>
 </head><body>
 <div class="toolbar">
-  <div class="toolbar-title">Explore citizenship statistics <span id="metric-indicator" style="font-weight:500;color:#64776b;margin-left:10px">Showing: detections / population (%)</span></div>
-  <div class="toggle-group" role="group" aria-label="Map colour metric">
-    <button class="toggle-btn active" type="button" data-metric="rate" aria-pressed="true">Detections / population</button>
-    <button class="toggle-btn" type="button" data-metric="count" aria-pressed="false">Recorded detections</button>
+  <div class="toolbar-title">Explorer les statistiques par nationalité <span id="metric-indicator" style="font-weight:500;color:#64776b;margin-left:10px">Indicateur : détections / population (%)</span></div>
+  <div class="toggle-group" role="group" aria-label="Indicateur de couleur de la carte">
+    <button class="toggle-btn active" type="button" data-metric="rate" aria-pressed="true">Détections / population</button>
+    <button class="toggle-btn" type="button" data-metric="count" aria-pressed="false">Détections enregistrées</button>
   </div>
 </div>
 <div class="charts">
-  <div class="panel"><div class="heading">World map by citizenship</div>
-     <div class="sub" id="map-sub">Detection-to-population ratio · all mappable citizenships with sufficient data</div>
+  <div class="panel"><div class="heading">Carte du monde par nationalité</div>
+     <div class="sub" id="map-sub">Rapport détections / population · toutes les nationalités cartographiables disposant de données suffisantes</div>
      <div id="world"></div></div>
-  <div class="panel"><div class="heading">Citizenship distribution</div>
-     <div class="sub" id="sun-sub">Labels and shades = detections / population (%) · area = recorded detections</div>
+  <div class="panel"><div class="heading">Répartition par nationalité</div>
+     <div class="sub" id="sun-sub">Libellés et nuances = détections / population (%) · surface = détections enregistrées</div>
      <div id="sun"></div></div>
 </div>
 <div class="legend">
  <span><i style="background:#6473b5"></i>Europe</span>
- <span><i style="background:#9364aa"></i>Asia</span>
- <span><i style="background:#317e75"></i>Africa</span>
- <span><i style="background:#4a7cbe"></i>Americas</span>
- <span><i style="background:#bf7f55"></i>Oceania</span>
- <span><i style="background:#8c9599"></i>Other</span>
+ <span><i style="background:#9364aa"></i>Asie</span>
+ <span><i style="background:#317e75"></i>Afrique</span>
+ <span><i style="background:#4a7cbe"></i>Amériques</span>
+ <span><i style="background:#bf7f55"></i>Océanie</span>
+ <span><i style="background:#8c9599"></i>Autres</span>
 </div>
-<div id="status" aria-live="polite">Hover over a country or sunburst slice to highlight it in both charts.</div>
+<div id="status" aria-live="polite">Survolez un pays ou un secteur du graphique radial pour le mettre en évidence dans les deux graphiques.</div>
 <script>
 'use strict';
 const P = __PAYLOAD__;
+const displayFR = name => P.display_fr[name] ?? name;
 const world = document.getElementById('world');
 const sun = document.getElementById('sun');
 const status = document.getElementById('status');
-const shortCount = n => Number(n).toLocaleString('en-US');
+const shortCount = n => Number(n).toLocaleString('fr-FR');
 const bigNames = new Set(P.sunburst_names);
 const otherNames = new Set(P.other_names);
 const nameByIso = Object.fromEntries(P.map.data.flatMap(t => t.locations.map((iso,i) => [iso, t.customdata[i][0]])));
@@ -560,23 +778,23 @@ function sunMatches(id, focus) {
 }
 function statusText(focus) {
   if (!focus) return metricMode === 'rate'
-    ? 'Hover over a country or sunburst slice. Map shading represents detections / resident population.'
-    : 'Hover over a country or sunburst slice. Map shading represents the number of recorded detections.';
-  if (focus.type === 'region') return focus.name + ' · highlighted region';
+    ? 'Survolez un pays ou un secteur du graphique radial. Les nuances de la carte représentent le rapport détections / population résidente.'
+    : 'Survolez un pays ou un secteur du graphique radial. Les nuances de la carte représentent le nombre de détections enregistrées.';
+  if (focus.type === 'region') return displayFR(focus.name) + ' · région mise en évidence';
   if (focus.type === 'other') {
     const n = P.other_stats?.detections ?? 0;
-    return 'Other · ' + shortCount(n) + ' recorded detections across smaller or unmappable categories';
+    return 'Autres · ' + shortCount(n) + ' détections enregistrées dans les catégories moins représentées ou non cartographiables';
   }
   const s = P.stats[focus.name];
-  if (!s) return focus.name;
-  const note = bigNames.has(focus.name) ? '' : ' · included in “Other” on the sunburst';
+  if (!s) return displayFR(focus.name);
+  const note = bigNames.has(focus.name) ? '' : ' · inclus dans « Autres » sur le graphique radial';
   const primary = metricMode === 'rate'
-    ? s.rate_pct.toFixed(2) + '% detections / population'
-    : shortCount(s.detections) + ' recorded detections';
+    ? s.rate_pct.toFixed(2) + '% de détections / population'
+    : shortCount(s.detections) + ' détections enregistrées';
   const secondary = metricMode === 'rate'
-    ? shortCount(s.detections) + ' recorded detections'
-    : s.rate_pct.toFixed(2) + '% detections / population';
-  return focus.name + ' · ' + primary + ' · ' + secondary + note;
+    ? shortCount(s.detections) + ' détections enregistrées'
+    : s.rate_pct.toFixed(2) + '% de détections / population';
+  return displayFR(focus.name) + ' · ' + primary + ' · ' + secondary + note;
 }
 
 // Read Plotly's attached D3 data so DOM ordering never causes country mismatches.
@@ -638,23 +856,23 @@ function requestFocus(focus) {
   if (JSON.stringify(focus) !== JSON.stringify(selectedFocus)) applyFocus(focus);
 }
 
-const rateHover = '<b>%{customdata[0]}</b><br>' +
-  'Detections / population: %{customdata[3]:.2f}%<br>' +
-  'Recorded detections: %{customdata[1]:,.0f}<br>' +
-  'Resident population benchmark: %{customdata[2]:,.0f}<extra></extra>';
-const countHover = '<b>%{customdata[0]}</b><br>' +
-  'Recorded detections: %{customdata[1]:,.0f}<br>' +
-  'Detections / population: %{customdata[3]:.2f}%<br>' +
-  'Resident population benchmark: %{customdata[2]:,.0f}<extra></extra>';
+const rateHover = '<b>%{customdata[4]}</b><br>' +
+  'Détections / population : %{customdata[3]:.2f}%<br>' +
+  'Détections enregistrées: %{customdata[1]:,.0f}<br>' +
+  'Population résidente de référence : %{customdata[2]:,.0f}<extra></extra>';
+const countHover = '<b>%{customdata[4]}</b><br>' +
+  'Détections enregistrées: %{customdata[1]:,.0f}<br>' +
+  'Détections / population : %{customdata[3]:.2f}%<br>' +
+  'Population résidente de référence : %{customdata[2]:,.0f}<extra></extra>';
 
 const rateSunHover = '<b>%{label}</b><br>' +
-  'Detections / population: %{customdata[1]}<br>' +
-  'Recorded detections: %{customdata[0]:,.0f}<br>' +
-  'Share of all detections: %{percentRoot:.1%}<extra></extra>';
+  'Détections / population : %{customdata[1]}<br>' +
+  'Détections enregistrées: %{customdata[0]:,.0f}<br>' +
+  'Part de l’ensemble des détections : %{percentRoot:.1%}<extra></extra>';
 const countSunHover = '<b>%{label}</b><br>' +
-  'Recorded detections: %{customdata[0]:,.0f}<br>' +
-  'Detections / population: %{customdata[1]}<br>' +
-  'Share of all detections: %{percentRoot:.1%}<extra></extra>';
+  'Détections enregistrées: %{customdata[0]:,.0f}<br>' +
+  'Détections / population : %{customdata[1]}<br>' +
+  'Part de l’ensemble des détections : %{percentRoot:.1%}<extra></extra>';
 
 async function updateMetric(mode) {
   if (mode !== 'rate' && mode !== 'count') return;
@@ -665,14 +883,14 @@ async function updateMetric(mode) {
     button.setAttribute('aria-pressed', String(active));
   });
   document.getElementById('metric-indicator').textContent = metricMode === 'rate'
-    ? 'Showing: detections / population (%)'
-    : 'Showing: recorded detections (people detected)';
+    ? 'Indicateur : détections / population (%)'
+    : 'Indicateur : détections enregistrées (personnes détectées)';
   document.getElementById('map-sub').textContent = metricMode === 'rate'
-    ? 'Colour intensity = detection / population ratio (%) · all available countries'
-    : 'Colour intensity = recorded detections (logarithmic shading) · all available countries';
+    ? 'Intensité de la couleur = rapport détections / population (%) · tous les pays disponibles'
+    : 'Intensité de la couleur = détections enregistrées (échelle logarithmique) · tous les pays disponibles';
   document.getElementById('sun-sub').textContent = metricMode === 'rate'
-    ? 'Labels and shades = detection / population ratio (%) · area = recorded detections'
-    : 'Labels and shades = recorded detections · area = recorded detections';
+    ? 'Libellés et nuances = rapport détections / population (%) · surface = détections enregistrées'
+    : 'Libellés et nuances = détections enregistrées · surface = détections enregistrées';
 
   // Apply colours immediately to the existing SVG; their CSS transition gives
   // 340ms crossfades even if Plotly redraws are slow or geographic assets fail.
@@ -739,7 +957,7 @@ Plotly.newPlot(sun,P.sun.data,P.sun.layout,opts).then(() => {
   applyFocus(selectedFocus);
   // In case the user changed metrics while Plotly was loading.
   if (metricMode === 'count') updateMetric('count');
-}).catch(e => {status.textContent='Could not render sunburst: '+e.message;});
+}).catch(e => {status.textContent='Impossible d’afficher le graphique radial : '+e.message;});
 Plotly.newPlot(world,P.map.data,P.map.layout,opts).then(() => {
   mapReady=true;
   indexMapPaths();
@@ -763,12 +981,12 @@ window.addEventListener('resize',()=>{
 # Linked map + sunburst: same data and palette, two-way hover highlighting.
 # Map: every mappable citizenship with at least 1,000 benchmark residents.
 # Pie: all sufficiently large slices; the remaining countries form "Other".
-st.markdown('### Citizenship: linked world map and distribution')
+st.markdown('### Nationalité : carte du monde et répartition interactives')
 st.caption(
-    'Worldwide view of **countries of citizenship**, not EU reporting countries. '
-    'Use the metric switch above the map to compare either aggregate detection-to-population '
-    'ratios or numbers of recorded detections. Geographic colors represent regions. '
-    'Hover over either chart to highlight the corresponding country smoothly.'
+    'Vue mondiale des **pays de nationalité**, et non des pays déclarants de l’UE. '
+    'Utilisez le sélecteur au-dessus de la carte pour comparer les rapports agrégés détections / population '
+    'ou les nombres de détections enregistrées. Les couleurs géographiques représentent les régions. '
+    'Survolez l’un des graphiques pour mettre en évidence le pays correspondant de manière fluide.'
 )
 
 citizenship_groups = {}
@@ -832,7 +1050,7 @@ if mappable_names:
             colorscale=[[0, lighter(base, .77)], [1, base]],
             showscale=False,
             showlegend=False,
-            name=region,
+            name=display_fr(region),
             marker_line_color=['#ffffff'] * len(names_in_region),
             marker_line_width=[.55] * len(names_in_region),
             customdata=[[
@@ -840,12 +1058,13 @@ if mappable_names:
                 citizenship_stats[name]['detections'],
                 citizenship_stats[name]['population_proxy'],
                 citizenship_stats[name]['rate_pct'],
+                display_fr(name),
             ] for name in names_in_region],
             hovertemplate=(
-                '<b>%{customdata[0]}</b><br>'
-                'Detection / population benchmark: %{z:.2f}%<br>'
-                'Recorded detections: %{customdata[1]:,.0f}<br>'
-                'Population benchmark: %{customdata[2]:,.0f}'
+                '<b>%{customdata[4]}</b><br>'
+                'Détections / population de référence : %{z:.2f}%<br>'
+                'Détections enregistrées: %{customdata[1]:,.0f}<br>'
+                'Population de référence: %{customdata[2]:,.0f}'
                 '<extra></extra>'
             ),
         ))
@@ -878,7 +1097,7 @@ if mappable_names:
         by_region.setdefault(region, []).append(name)
 
     ids = ['root']
-    labels = ['All citizenships']
+    labels = ['Toutes les nationalités']
     parents = ['']
     values = [total_detections]
     colors = ['#243f37']
@@ -899,7 +1118,7 @@ if mappable_names:
         region_total = sum(citizenship_stats[n]['detections'] for n in names_in_region)
         reg_id = 'r:' + region
         ids.append(reg_id)
-        labels.append(region)
+        labels.append(display_fr(region))
         parents.append('root')
         values.append(region_total)
         colors.append(REGION_COLOR[region])
@@ -909,7 +1128,7 @@ if mappable_names:
         for name in names_in_region:
             stat = citizenship_stats[name]
             ids.append('c:' + name)
-            labels.append(name)
+            labels.append(display_fr(name))
             parents.append(reg_id)
             values.append(stat['detections'])
             # Initial country shading reflects the default detection/population metric.
@@ -919,7 +1138,7 @@ if mappable_names:
 
     if other_stats and other_stats['detections'] > 0:
         ids.append('other')
-        labels.append('Other')
+        labels.append('Autres')
         parents.append('root')
         values.append(other_stats['detections'])
         colors.append('#8c9599')
@@ -944,9 +1163,9 @@ if mappable_names:
         insidetextorientation='radial',
         hovertemplate=(
             '<b>%{label}</b><br>'
-            'Detection / population benchmark: %{customdata[1]}<br>'
-            'Recorded detections: %{customdata[0]:,.0f}<br>'
-            'Share of detections: %{percentRoot:.1%}'
+            'Détections / population de référence : %{customdata[1]}<br>'
+            'Détections enregistrées: %{customdata[0]:,.0f}<br>'
+            'Part des détections : %{percentRoot:.1%}'
             '<extra></extra>'
         ),
     ))
@@ -966,6 +1185,7 @@ if mappable_names:
         'max_rate': max_rate,
         'max_count': max(citizenship_stats[n]['detections'] for n in mappable_names),
         'region_colors': REGION_COLOR,
+        'display_fr': DISPLAY_FR,
         'sun': json.loads(fig_sun.to_json()),
         'sunburst_names': sunburst_countries,
         'other_names': other_names,
@@ -982,35 +1202,35 @@ if mappable_names:
     html_page = html_page.replace('/* __PLOTLY_JS__ */', get_plotlyjs())
     components.html(html_page, height=670, scrolling=True)
     st.caption(
-        f'Map: {len(mappable_names)} countries with at least '
-        f'{MIN_POPULATION_BENCHMARK:,} benchmark residents, always displayed. '
-        f'Sunburst: {len(sunburst_countries)} countries each contributing at least '
-        f'{SUNBURST_MIN_DETECTION_SHARE:.0%} of recorded detections; all smaller '
-        'categories (including unmappable/unspecified citizenship) appear under Other. '
-        'Hovering a small mapped country highlights Other in the sunburst. '
-        'The toggle changes both map and sunburst colours, country labels, and metric priority. '
-        'Sunburst slice AREA always represents recorded detections: ratios cannot be summed. '
-        'These are aggregate detection/population ratios, not individual probabilities.'
+        f'Carte : {len(mappable_names)} pays comptant au moins '
+        f'{MIN_POPULATION_BENCHMARK:,} résidents de référence, toujours affichés. '
+        f'Graphique radial : {len(sunburst_countries)} pays représentant chacun au moins '
+        f'{SUNBURST_MIN_DETECTION_SHARE:.0%} des détections enregistrées ; toutes les catégories moins représentées '
+        '(y compris les nationalités non cartographiables ou non précisées) figurent sous « Autres ». '
+        'Le survol d’un pays cartographié moins représenté met en évidence « Autres » dans le graphique radial. '
+        'Le sélecteur modifie les couleurs de la carte et du graphique radial, les libellés des pays et la priorité de l’indicateur. '
+        'La SURFACE des secteurs du graphique radial représente toujours les détections enregistrées : les rapports ne peuvent pas être additionnés. '
+        'Il s’agit de rapports détections / population agrégés, et non de probabilités individuelles.'
     )
 else:
-    st.info('No mappable citizenship data meet the population coverage threshold for this selection.')
+    st.info('Aucune donnée de nationalité cartographiable n’atteint le seuil de couverture de population pour cette sélection.')
 
-with st.expander('Model quality and data methodology',expanded=False):
+with st.expander('Qualité du modèle et méthodologie des données',expanded=False):
     key='all_citizenships' if citizenship=='Total' else 'specific_citizenship'
     val=summary['validation_2025'][key]
-    st.write(f"**Model:** histogram-based gradient-boosting Poisson regression · **Training records:** {summary['training_rows']:,} · **Holdout:** year 2025")
+    st.write(f"**Modèle :** régression de Poisson par boosting de gradient basé sur des histogrammes · **Données d’entraînement :** {summary['training_rows']:,} · **Jeu de test indépendant :** année 2025")
     if val['mae_percentage_points'] is not None:
-        st.write(f"**2025 holdout mean absolute error:** {val['mae_percentage_points']:.3f} percentage points across {val['rows']:,} cells. This measures aggregate benchmark prediction error, not classification accuracy.")
-    st.write('**Age alignment:**',summary['age_denominator_assumption'])
-    st.write('**Data definitions:** EU irregular-presence counts are annual detections (and may include multiple observations); Eurostat population is measured on 1 January and includes residents regardless of immigration-law verification. These are not strict disjoint legal/illegal labels.')
-    st.write('**Excluded:** missing/suppressed cells, incomplete 3-band population groups and cells where annual detections exceed resident population benchmark.')
-    st.write('**Risk of bias:** enforcement and reporting practices, different population scopes and visitor records affect comparisons. Never use these estimates to evaluate people.')
-    st.markdown('Sources: [Eurostat migr_eipre](https://ec.europa.eu/eurostat/databrowser/view/migr_eipre/default/table?lang=en) · [Eurostat migr_pop1ctz](https://ec.europa.eu/eurostat/databrowser/view/migr_pop1ctz/default/table?lang=en)')
+        st.write(f"**Erreur absolue moyenne sur le jeu de test de 2025 :** {val['mae_percentage_points']:.3f} points de pourcentage sur {val['rows']:,} cellules. Cette mesure évalue l’erreur de prédiction du taux agrégé, et non la précision d’une classification.")
+    st.write('**Harmonisation des tranches d’âge :**','La population âgée de 15 à 64 ans a été répartie uniformément par année d’âge afin de correspondre aux tranches d’âge des données de séjour irrégulier.')
+    st.write('**Définitions des données :** les chiffres de séjour irrégulier dans l’UE correspondent à des détections annuelles (et peuvent inclure plusieurs observations) ; la population Eurostat est mesurée au 1er janvier et inclut les résidents indépendamment de la vérification de leur statut au regard du droit de l’immigration. Il ne s’agit pas de catégories juridiques strictement distinctes de séjour régulier et irrégulier.')
+    st.write('**Exclusions :** cellules manquantes ou masquées, groupes de population incomplets pour les trois tranches d’âge et cellules où les détections annuelles dépassent la population résidente de référence.')
+    st.write('**Risque de biais :** les pratiques de contrôle et de déclaration, les différents périmètres de population et les données relatives aux visiteurs influencent les comparaisons. N’utilisez jamais ces estimations pour évaluer des personnes.')
+    st.markdown('Sources: [Eurostat migr_eipre](https://ec.europa.eu/eurostat/databrowser/view/migr_eipre/default/table?lang=fr) · [Eurostat migr_pop1ctz](https://ec.europa.eu/eurostat/databrowser/view/migr_pop1ctz/default/table?lang=fr)')
 
 export=StringIO()
 writer=csv.writer(export)
 writer.writerow(['country','year','citizenship','sex','age','detections','population_proxy','rate_per_100k'])
 for r in selected:
     writer.writerow([r[k] for k in ('country','year','citizenship','sex','age','detections','population_proxy','rate_per_100k')])
-st.download_button('Download current cohort as CSV',data=export.getvalue(),
+st.download_button('Télécharger la cohorte sélectionnée au format CSV',data=export.getvalue(),
     file_name='migration_detection_cohort.csv',mime='text/csv',use_container_width=False)

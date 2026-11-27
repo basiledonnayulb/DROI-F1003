@@ -90,6 +90,11 @@ Un panneau latéral permet de sélectionner les différentes variables. Les rés
 
 La partie principale de l'application présente d'abord une estimation produite par le modèle, exprimée en pourcentage. Trois indicateurs complémentaires permettent de contextualiser cette valeur : le taux observé dans les données, le nombre de détections enregistrées et la population de référence utilisée pour le calcul.
 
+#figure(
+  image("images/Estimation_modèle_et_indicateurs.png", width: 100%),
+  caption: [L'estimation IA et les trois indicateurs complémentaires],
+)
+
 Plusieurs visualisations permettent ensuite d'explorer les résultats.
 
 === Évolution au fil des années
