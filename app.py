@@ -7,6 +7,8 @@ from pathlib import Path
 import joblib
 import sklearn
 import plotly.graph_objects as go
+from plotly.offline import get_plotlyjs
+import streamlit.components.v1 as components
 import streamlit as st
 from src.model import read_training, choose_rows, summarize_cohort, predicted_pct
 
@@ -123,109 +125,6 @@ if age_rows:
     st.plotly_chart(bars,use_container_width=True)
     st.caption('All age-specific comparisons use approximate denominators; they are not individual legal-status risks.')
 
-st.markdown('### Compare detections / population')
-# Compare the top 15 citizenships by recorded detections.
-# Combine every remaining citizenship into "Other", including small cohorts.
-citizenship_groups = {}
-for r in rows:
-    if r['citizenship'] == 'Total' or r['year'] != year or r['age'] != age:
-        continue
-    if sex != 'All' and r['sex'] != sex:
-        continue
-    if country != 'All' and r['country'] != country:
-        continue
-    citizenship_groups.setdefault(r['citizenship'], []).append(r)
-
-citizenship_stats = {}
-for name, cohort in citizenship_groups.items():
-    stats = summarize_cohort(cohort)
-    if stats and stats['population_proxy'] > 0:
-        citizenship_stats[name] = stats
-
-if citizenship_stats:
-    # Keep the original 1,000-person threshold for individually displayed groups.
-    # Smaller groups are still counted in "Other"; they are not discarded.
-    top_15 = sorted(
-        (name for name, stats in citizenship_stats.items()
-         if stats['population_proxy'] >= 1000),
-        key=lambda name: citizenship_stats[name]['detections'],
-        reverse=True,
-    )[:15]
-
-    # Aggregate counts BEFORE dividing: never average citizenship percentages.
-    other_rows = [
-        row
-        for name, cohort in citizenship_groups.items()
-        if name not in top_15
-        for row in cohort
-    ]
-    other_stats = summarize_cohort(other_rows)
-
-    display_stats = {name: citizenship_stats[name] for name in top_15}
-    if other_stats and other_stats['population_proxy'] > 0:
-        display_stats['Other'] = other_stats
-
-    # Plotly horizontal bar charts draw the first category at the bottom by
-    # default. Reversing the axis puts the top-ranked group first and Other last.
-    shown = sorted(
-        top_15,
-        key=lambda name: display_stats[name]['rate_pct'],
-        reverse=True
-    )
-
-    if 'Other' in display_stats:
-        shown.append('Other')
-    
-    fig_cit = go.Figure(go.Bar(
-        x=[display_stats[name]['rate_pct'] for name in shown],
-        y=shown,
-        orientation='h',
-        text=[f"{display_stats[name]['rate_pct']:.2f}%" for name in shown],
-        textposition='outside',
-        marker_color=[
-            '#a1aaa3' if name == 'Other'
-            else '#296646' if name == origin
-            else '#78a68a'
-            for name in shown
-        ],
-        customdata=[
-            [display_stats[name]['detections'],
-             display_stats[name]['population_proxy']]
-            for name in shown
-        ],
-        hovertemplate=(
-            '<b>%{y}</b><br>'
-            'Observed benchmark: %{x:.2f}%<br>'
-            'Recorded detections: %{customdata[0]:,.0f}<br>'
-            'Resident population benchmark: %{customdata[1]:,.0f}'
-            '<extra></extra>'
-        ),
-    ))
-    fig_cit.update_layout(
-        height=max(400, 34 * len(shown) + 115),
-        margin=dict(l=10, r=65, t=15, b=20),
-        xaxis_title='Observed detection benchmark (%)',
-        yaxis_title='Citizenship',
-        yaxis=dict(autorange='reversed'),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-    )
-    st.plotly_chart(fig_cit, use_container_width=True)
-    st.caption(
-        'Top 15 ranked by recorded detections (not by percentage). '
-        'Other combines all remaining available citizenship groups, '
-        'including groups with fewer than 1,000 benchmark residents; '
-        'its percentage is total detections divided by total benchmark population. '
-        'These are detection/population ratios, not individual probabilities.'
-    )
-else:
-    st.info('No citizenship comparison data are available for these filters.')
-
-st.markdown('### Compare citizenships')
-st.caption('Interactive sunburst: inner ring = geographic region, outer ring = citizenship. '
-           'Slice area represents **recorded detection counts**, not probability. '
-           'Hover over a citizenship to view its observed detection/population benchmark.')
-
 # Covers the citizenship labels occurring in the provided Eurostat training.csv.
 # Borderline/transcontinental locations are assigned to a single display region
 # for visualisation only; this does not change model estimates.
@@ -257,9 +156,353 @@ def lighter(hex_color, strength=0.17):
     rgb = [round(n + (255 - n) * strength) for n in rgb]
     return '#{:02x}{:02x}{:02x}'.format(*rgb)
 
-# Match the currently selected year, age band, sex, and reporting country.
-# As in the original chart, the sidebar citizenship selection is NOT used here:
-# this chart compares citizenships against one another.
+# ISO-3166 country codes for citizenship origins, not reporting destinations.
+# Stateless / Unknown categories have no geographic polygon.
+CITIZENSHIP_ISO3 = {
+    'Afghanistan': 'AFG',
+    'Albania': 'ALB',
+    'Algeria': 'DZA',
+    'Andorra': 'AND',
+    'Angola': 'AGO',
+    'Antigua and Barbuda': 'ATG',
+    'Argentina': 'ARG',
+    'Armenia': 'ARM',
+    'Australia': 'AUS',
+    'Azerbaijan': 'AZE',
+    'Bahamas': 'BHS',
+    'Bahrain': 'BHR',
+    'Bangladesh': 'BGD',
+    'Barbados': 'BRB',
+    'Belarus': 'BLR',
+    'Belize': 'BLZ',
+    'Benin': 'BEN',
+    'Bhutan': 'BTN',
+    'Bolivia': 'BOL',
+    'Bosnia and Herzegovina': 'BIH',
+    'Botswana': 'BWA',
+    'Brazil': 'BRA',
+    'Brunei Darussalam': 'BRN',
+    'Burkina Faso': 'BFA',
+    'Burundi': 'BDI',
+    'Cabo Verde': 'CPV',
+    'Cambodia': 'KHM',
+    'Cameroon': 'CMR',
+    'Canada': 'CAN',
+    'Central African Republic': 'CAF',
+    'Chad': 'TCD',
+    'Chile': 'CHL',
+    'China': 'CHN',
+    'Colombia': 'COL',
+    'Comoros': 'COM',
+    'Congo': 'COG',
+    'Costa Rica': 'CRI',
+    'Croatia': 'HRV',
+    'Cuba': 'CUB',
+    'Côte d’Ivoire': 'CIV',
+    'Democratic Republic of the Congo': 'COD',
+    'Djibouti': 'DJI',
+    'Dominica': 'DMA',
+    'Dominican Republic': 'DOM',
+    'Ecuador': 'ECU',
+    'Egypt': 'EGY',
+    'El Salvador': 'SLV',
+    'Equatorial Guinea': 'GNQ',
+    'Eritrea': 'ERI',
+    'Eswatini': 'SWZ',
+    'Ethiopia': 'ETH',
+    'Federated States of Micronesia': 'FSM',
+    'Fiji': 'FJI',
+    'Gabon': 'GAB',
+    'Gambia, The': 'GMB',
+    'Georgia': 'GEO',
+    'Ghana': 'GHA',
+    'Grenada': 'GRD',
+    'Guatemala': 'GTM',
+    'Guinea': 'GIN',
+    'Guinea-Bissau': 'GNB',
+    'Guyana': 'GUY',
+    'Haiti': 'HTI',
+    'Holy See': 'VAT',
+    'Honduras': 'HND',
+    'India': 'IND',
+    'Indonesia': 'IDN',
+    'Iran': 'IRN',
+    'Iraq': 'IRQ',
+    'Israel': 'ISR',
+    'Jamaica': 'JAM',
+    'Japan': 'JPN',
+    'Jordan': 'JOR',
+    'Kazakhstan': 'KAZ',
+    'Kenya': 'KEN',
+    'Kiribati': 'KIR',
+    'Kosovo*': 'XKX',
+    'Kuwait': 'KWT',
+    'Kyrgyzstan': 'KGZ',
+    'Laos': 'LAO',
+    'Lebanon': 'LBN',
+    'Lesotho': 'LSO',
+    'Liberia': 'LBR',
+    'Libya': 'LBY',
+    'Madagascar': 'MDG',
+    'Malawi': 'MWI',
+    'Malaysia': 'MYS',
+    'Maldives': 'MDV',
+    'Mali': 'MLI',
+    'Marshall Islands': 'MHL',
+    'Mauritania': 'MRT',
+    'Mauritius': 'MUS',
+    'Mexico': 'MEX',
+    'Moldova': 'MDA',
+    'Monaco': 'MCO',
+    'Mongolia': 'MNG',
+    'Montenegro': 'MNE',
+    'Morocco': 'MAR',
+    'Mozambique': 'MOZ',
+    'Myanmar/Burma': 'MMR',
+    'Namibia': 'NAM',
+    'Nepal': 'NPL',
+    'New Zealand': 'NZL',
+    'Nicaragua': 'NIC',
+    'Niger': 'NER',
+    'Nigeria': 'NGA',
+    'North Korea': 'PRK',
+    'North Macedonia': 'MKD',
+    'Oman': 'OMN',
+    'Pakistan': 'PAK',
+    'Palau': 'PLW',
+    'Palestine*': 'PSE',
+    'Panama': 'PAN',
+    'Papua New Guinea': 'PNG',
+    'Paraguay': 'PRY',
+    'Peru': 'PER',
+    'Philippines': 'PHL',
+    'Qatar': 'QAT',
+    'Russia': 'RUS',
+    'Rwanda': 'RWA',
+    'Saint Kitts and Nevis': 'KNA',
+    'Saint Lucia': 'LCA',
+    'Saint Vincent and the Grenadines': 'VCT',
+    'Samoa': 'WSM',
+    'San Marino': 'SMR',
+    'Saudi Arabia': 'SAU',
+    'Senegal': 'SEN',
+    'Seychelles': 'SYC',
+    'Sierra Leone': 'SLE',
+    'Singapore': 'SGP',
+    'Solomon Islands': 'SLB',
+    'Somalia': 'SOM',
+    'South Africa': 'ZAF',
+    'Sri Lanka': 'LKA',
+    'Sudan': 'SDN',
+    'Suriname': 'SUR',
+    'Syria': 'SYR',
+    'São Tomé and Príncipe': 'STP',
+    'Taiwan': 'TWN',
+    'Tajikistan': 'TJK',
+    'Tanzania': 'TZA',
+    'Thailand': 'THA',
+    'Timor-Leste': 'TLS',
+    'Togo': 'TGO',
+    'Tonga': 'TON',
+    'Trinidad and Tobago': 'TTO',
+    'Tunisia': 'TUN',
+    'Turkmenistan': 'TKM',
+    'Tuvalu': 'TUV',
+    'Türkiye': 'TUR',
+    'Uganda': 'UGA',
+    'Ukraine': 'UKR',
+    'United Arab Emirates': 'ARE',
+    'United Kingdom': 'GBR',
+    'United States': 'USA',
+    'Uruguay': 'URY',
+    'Uzbekistan': 'UZB',
+    'Vanuatu': 'VUT',
+    'Venezuela': 'VEN',
+    'Viet Nam': 'VNM',
+    'Western Sahara': 'ESH',
+    'Yemen': 'YEM',
+    'Zambia': 'ZMB',
+    'Zimbabwe': 'ZWE',
+}
+
+LINKED_CHART_HTML = r"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {font-family:Arial, sans-serif;color:#273d32}
+  body {margin:0;background:transparent}
+  .charts {display:grid;grid-template-columns:minmax(0,1.26fr) minmax(0,1fr);gap:10px}
+  .panel {min-width:0;background:#fff;border:1px solid #dfe7df;border-radius:12px;overflow:hidden}
+  .heading {padding:12px 16px 0;font-size:13px;font-weight:700;color:#335a45}
+  .sub {padding:3px 16px 0;color:#6b7b70;font-size:11px}
+  #world, #sun {height:475px;width:100%}
+  #status {box-sizing:border-box;margin-top:8px;min-height:44px;background:#f1f5f2;
+      border:1px solid #dde7df;border-radius:10px;padding:12px 15px;
+      color:#365846;font-size:12px;line-height:1.55}
+  .legend {display:flex;flex-wrap:wrap;gap:12px;margin:9px 5px 0;font-size:11px;color:#4f6257}
+  .legend span {display:flex;align-items:center;gap:5px}
+  .legend i {width:11px;height:11px;border-radius:3px;display:inline-block}
+  @media(max-width:680px) {.charts {grid-template-columns:1fr} #world,#sun{height:375px}}
+</style>
+<script>/* __PLOTLY_JS__ */</script>
+</head><body>
+<div class="charts">
+  <div class="panel"><div class="heading">World map by citizenship</div>
+     <div class="sub">All mappable citizenships with sufficient data</div>
+     <div id="world"></div></div>
+  <div class="panel"><div class="heading">Citizenship distribution</div>
+     <div class="sub">Continent → citizenship · smaller slices grouped as Other</div>
+     <div id="sun"></div></div>
+</div>
+<div class="legend">
+ <span><i style="background:#6473b5"></i>Europe</span>
+ <span><i style="background:#9364aa"></i>Asia</span>
+ <span><i style="background:#317e75"></i>Africa</span>
+ <span><i style="background:#4a7cbe"></i>Americas</span>
+ <span><i style="background:#bf7f55"></i>Oceania</span>
+ <span><i style="background:#8c9599"></i>Other</span>
+</div>
+<div id="status" aria-live="polite">Hover over a country on the map or a slice on the sunburst to highlight the corresponding area in both charts.</div>
+<script>
+'use strict';
+const P = __PAYLOAD__;
+const world = document.getElementById('world');
+const sun = document.getElementById('sun');
+const status = document.getElementById('status');
+const sunTrace = P.sun.data[0];
+const allIds = sunTrace.ids;
+const baseSunColors = Array.from(sunTrace.marker.colors);
+const baseMapWidths = P.map.data.map(t => t.locations.map(() => .55));
+const baseMapColors = P.map.data.map(t => t.locations.map(() => '#ffffff'));
+const bigNames = new Set(P.sunburst_names);
+const otherNames = new Set(P.other_names);
+const mapNames = new Set(Object.keys(P.region_of));
+const shortCount = n => Number(n).toLocaleString('en-US');
+let selectedFocus = null;
+let changing = false;
+let queued; // undefined means no queued focus; null means reset
+let sunReady = false;
+let mapReady = false;
+
+// A single focus may identify one country, an entire region or "Other".
+function mapMatches(name, focus) {
+  if (!focus) return false;
+  if (focus.type === 'country') return name === focus.name;
+  if (focus.type === 'region') return P.region_of[name] === focus.name;
+  if (focus.type === 'other') return otherNames.has(name);
+  return false;
+}
+function sunMatches(id, focus) {
+  if (!focus) return true;
+  if (id === 'root') return true;
+  if (focus.type === 'other') return id === 'other';
+  if (focus.type === 'region') {
+    if (id === 'r:' + focus.name) return true;
+    if (id.startsWith('c:')) return P.region_of[id.slice(2)] === focus.name;
+    return false;
+  }
+  if (focus.type === 'country') {
+    const region = P.region_of[focus.name];
+    const idToHighlight = bigNames.has(focus.name) ? 'c:' + focus.name : 'other';
+    return id === idToHighlight || id === 'r:' + region;
+  }
+  return false;
+}
+function statusText(focus) {
+  if (!focus) return 'Hover over a country on the map or a slice on the sunburst to highlight the corresponding area in both charts.';
+  if (focus.type === 'region') return focus.name + ' · highlighted region';
+  if (focus.type === 'other') {
+     const n = P.other_stats?.detections ?? 0;
+     return 'Other · ' + shortCount(n) + ' recorded detections from all smaller or unmappable categories';
+  }
+  const s = P.stats[focus.name];
+  if (!s) return focus.name;
+  const groupNote = bigNames.has(focus.name) ? '' : ' · part of “Other” in the sunburst';
+  return focus.name + ' · ' + s.rate_pct.toFixed(2) + '% detected cases / population benchmark · '
+       + shortCount(s.detections) + ' recorded detections' + groupNote;
+}
+async function renderFocus(focus) {
+  changing = true;
+  selectedFocus = focus;
+  status.textContent = statusText(focus);
+  const tasks = [];
+  for (let ti = 0; mapReady && ti < P.map.data.length; ti++) {
+    const names = P.map.data[ti].customdata.map(x => x[0]);
+    const widths = names.map(name => focus && mapMatches(name, focus) ? 3 : .55);
+    const strokes = names.map(name => focus && mapMatches(name, focus) ? '#1c332d' : '#ffffff');
+    tasks.push(Plotly.restyle(world, {
+      'marker.line.width': [widths],
+      'marker.line.color': [strokes]
+    }, [ti]));
+  }
+  const cols = allIds.map((id, i) => {
+    if (!focus || sunMatches(id, focus)) return baseSunColors[i];
+    // Fade non-matching areas without changing the continent color scheme.
+    return '#e7ece9';
+  });
+  const widths = allIds.map(id => focus && sunMatches(id, focus) && id !== 'root' ? 3 : 1);
+  const strokes = allIds.map(id => focus && sunMatches(id, focus) && id !== 'root' ? '#1c332d' : '#ffffff');
+  if (sunReady) tasks.push(Plotly.restyle(sun, {
+    'marker.colors': [cols],
+    'marker.line.width': [widths],
+    'marker.line.color': [strokes]
+  }, [0]));
+  try { await Promise.all(tasks); } catch (e) { console.warn('Linked chart highlight error:', e); }
+  changing = false;
+  if (queued !== undefined) {
+    const next = queued;
+    queued = undefined;
+    if (JSON.stringify(next) !== JSON.stringify(selectedFocus)) renderFocus(next);
+  }
+}
+function requestFocus(focus) {
+  if (!sunReady) return;
+  if (changing) { queued = focus; return; }
+  if (JSON.stringify(focus) === JSON.stringify(selectedFocus)) return;
+  renderFocus(focus);
+}
+const opts = {responsive:true, displayModeBar:false, scrollZoom:false};
+// Bind each chart independently: a slow/unavailable map tile must not disable the sunburst.
+Plotly.newPlot(sun, P.sun.data, P.sun.layout, opts).then(() => {
+  sunReady = true;
+  sun.on('plotly_hover', ev => {
+    const pt = ev.points?.[0];
+    if (!pt) return;
+    const nodeId = pt.id || pt.data?.ids?.[pt.pointNumber];
+    if (!nodeId || nodeId === 'root') return requestFocus(null);
+    if (nodeId === 'other') return requestFocus({type:'other'});
+    if (nodeId.startsWith('r:')) return requestFocus({type:'region',name:nodeId.slice(2)});
+    if (nodeId.startsWith('c:')) return requestFocus({type:'country',name:nodeId.slice(2)});
+  });
+  sun.addEventListener('mouseleave', () => requestFocus(null));
+}).catch(error => {status.textContent = 'Could not render sunburst: ' + error.message;});
+Plotly.newPlot(world, P.map.data, P.map.layout, opts).then(() => {
+  mapReady = true;
+  world.on('plotly_hover', ev => {
+    const pt = ev.points?.[0];
+    const name = pt?.customdata?.[0];
+    if (name) requestFocus({type:'country', name:name});
+  });
+  world.addEventListener('mouseleave', () => requestFocus(null));
+  if (selectedFocus) renderFocus(selectedFocus);
+}).catch(error => {console.warn('Could not render world map:', error);});
+window.addEventListener('resize', () => {
+  if (mapReady) Plotly.Plots.resize(world);
+  if (sunReady) Plotly.Plots.resize(sun);
+});
+</script></body></html>"""
+
+# Linked map + sunburst: same data and palette, two-way hover highlighting.
+# Map: every mappable citizenship with at least 1,000 benchmark residents.
+# Pie: all sufficiently large slices; the remaining countries form "Other".
+st.markdown('### Citizenship: world map and detection distribution')
+st.caption(
+    'Worldwide view of **countries of citizenship**, not EU reporting countries. '
+    'Color families represent regions; intensity represents observed detections '
+    'relative to the resident population benchmark. Hover over either view to '
+    'highlight the corresponding country in the other view.'
+)
+
 citizenship_groups = {}
 for r in rows:
     if r['citizenship'] == 'Total' or r['year'] != year or r['age'] != age:
@@ -272,111 +515,204 @@ for r in rows:
 
 citizenship_stats = {}
 for name, cohort in citizenship_groups.items():
-    stat = summarize_cohort(cohort)
-    if stat and stat['population_proxy'] > 0:
-        citizenship_stats[name] = stat
+    info = summarize_cohort(cohort)
+    if info and info['population_proxy'] > 0:
+        citizenship_stats[name] = info
 
-if citizenship_stats:
-    # Top 15 by DETECTIONS, as in the previous version.
-    top_15 = sorted(
-        (name for name, stat in citizenship_stats.items()
-         if stat['population_proxy'] >= 1000),
-        key=lambda n: citizenship_stats[n]['detections'],
-        reverse=True,
-    )[:15]
+# Leave missing/suppressed cells out. Do not silently interpret them as zero.
+MIN_POPULATION_BENCHMARK = 1000
+SUNBURST_MIN_DETECTION_SHARE = 0.01  # At least 1% of recorded detections.
 
-    # The remaining citizenships form ONE 'Other' slice.
-    other_rows = [
-        r for name, cohort in citizenship_groups.items()
-        if name not in top_15 for r in cohort
+mappable_names = sorted(
+    (name for name, info in citizenship_stats.items()
+     if info['population_proxy'] >= MIN_POPULATION_BENCHMARK
+     and name in CITIZENSHIP_ISO3),
+    key=lambda name: citizenship_stats[name]['detections'],
+    reverse=True,
+)
+
+if mappable_names:
+    total_detections = sum(info['detections'] for info in citizenship_stats.values())
+    sunburst_countries = [
+        name for name in mappable_names
+        if citizenship_stats[name]['detections'] > 0
+        and citizenship_stats[name]['detections'] >= total_detections * SUNBURST_MIN_DETECTION_SHARE
     ]
-    other_stat = summarize_cohort(other_rows)
+    other_names = [name for name in citizenship_stats if name not in sunburst_countries]
+    other_rows = [r for name in other_names for r in citizenship_groups[name]]
+    other_stats = summarize_cohort(other_rows)
+
+    # Each region is a Plotly choropleth trace so it keeps the original palette.
+    max_rate = max(citizenship_stats[name]['rate_pct'] for name in mappable_names)
+    max_rate = max(max_rate, 1e-9)
+    fig_map = go.Figure()
+    for region in ['Europe', 'Asia', 'Africa', 'Americas', 'Oceania',
+                   'Unspecified', 'Other regions']:
+        names_in_region = [
+            name for name in mappable_names
+            if REGION_OF.get(name, 'Other regions') == region
+        ]
+        if not names_in_region:
+            continue
+        base = REGION_COLOR[region]
+        fig_map.add_trace(go.Choropleth(
+            locations=[CITIZENSHIP_ISO3[name] for name in names_in_region],
+            locationmode='ISO-3',
+            z=[citizenship_stats[name]['rate_pct'] for name in names_in_region],
+            zmin=0,
+            zmax=max_rate,
+            colorscale=[[0, lighter(base, .77)], [1, base]],
+            showscale=False,
+            showlegend=False,
+            name=region,
+            marker_line_color=['#ffffff'] * len(names_in_region),
+            marker_line_width=[.55] * len(names_in_region),
+            customdata=[[
+                name,
+                citizenship_stats[name]['detections'],
+                citizenship_stats[name]['population_proxy'],
+            ] for name in names_in_region],
+            hovertemplate=(
+                '<b>%{customdata[0]}</b><br>'
+                'Detection / population benchmark: %{z:.2f}%<br>'
+                'Recorded detections: %{customdata[1]:,.0f}<br>'
+                'Population benchmark: %{customdata[2]:,.0f}'
+                '<extra></extra>'
+            ),
+        ))
+    fig_map.update_geos(
+        scope='world',
+        projection_type='natural earth',
+        center=dict(lon=0, lat=0),
+        showframe=False,
+        showcoastlines=False,
+        showcountries=True,
+        countrycolor='#ffffff',
+        countrywidth=.6,
+        showland=True,
+        landcolor='#e7ebe9',
+        showocean=True,
+        oceancolor='#f4f8fa',
+        bgcolor='rgba(0,0,0,0)',
+    )
+    fig_map.update_layout(
+        height=475,
+        margin=dict(l=0, r=0, t=7, b=7),
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family='Arial', size=12),
+        uirevision='full-world',
+    )
 
     by_region = {}
-    for name in top_15:
+    for name in sunburst_countries:
         region = REGION_OF.get(name, 'Other regions')
         by_region.setdefault(region, []).append(name)
 
-    # Explicit hierarchy gives a region ring + citizenship ring.
-    ids = ['all']
+    ids = ['root']
     labels = ['All detections']
     parents = ['']
-    root_total = sum(citizenship_stats[n]['detections'] for n in top_15)
-    if other_stat:
-        root_total += other_stat['detections']
-    values = [root_total]
+    values = [total_detections]
     colors = ['#243f37']
-    details = [[f'{root_total:,}', '—']]
+    info_labels = [[total_detections, '—']]
 
     for region in sorted(
         by_region,
         key=lambda reg: sum(citizenship_stats[n]['detections'] for n in by_region[reg]),
         reverse=True,
     ):
-        region_names = sorted(
+        names_in_region = sorted(
             by_region[region],
             key=lambda n: citizenship_stats[n]['detections'],
             reverse=True,
         )
-        region_count = sum(citizenship_stats[n]['detections'] for n in region_names)
-        reg_id = f'region:{region}'
+        region_total = sum(citizenship_stats[n]['detections'] for n in names_in_region)
+        reg_id = 'r:' + region
         ids.append(reg_id)
         labels.append(region)
-        parents.append('all')
-        values.append(region_count)
+        parents.append('root')
+        values.append(region_total)
         colors.append(REGION_COLOR[region])
-        details.append([f'{region_count:,}', '—'])
-        for name in region_names:
+        info_labels.append([region_total, '—'])
+        for name in names_in_region:
             stat = citizenship_stats[name]
-            ids.append(f'citizenship:{name}')
+            ids.append('c:' + name)
             labels.append(name)
             parents.append(reg_id)
             values.append(stat['detections'])
-            colors.append(lighter(REGION_COLOR[region]))
-            details.append([f"{stat['detections']:,}", f"{stat['rate_pct']:.2f}%"])
+            colors.append(lighter(REGION_COLOR[region], .16))
+            info_labels.append([stat['detections'], f"{stat['rate_pct']:.2f}%"])
 
-    # Appended LAST in the sunburst ordering. In a circle, unlike a bar chart,
-    # there is no fixed 'bottom' position; it is one standalone wedge.
-    if other_stat and other_stat['detections'] > 0:
+    if other_stats and other_stats['detections'] > 0:
         ids.append('other')
         labels.append('Other')
-        parents.append('all')
-        values.append(other_stat['detections'])
+        parents.append('root')
+        values.append(other_stats['detections'])
         colors.append('#8c9599')
-        details.append([f"{other_stat['detections']:,}",
-                        f"{other_stat['rate_pct']:.2f}%" if other_stat['rate_pct'] is not None else '—'])
+        info_labels.append([
+            other_stats['detections'],
+            f"{other_stats['rate_pct']:.2f}%" if other_stats['rate_pct'] is not None else '—'
+        ])
 
-    fig_cit = go.Figure(go.Sunburst(
-        ids=ids, labels=labels, parents=parents, values=values,
-        branchvalues='total', sort=False,
-        marker=dict(colors=colors, line=dict(color='white', width=1.5)),
-        customdata=details,
+    fig_sun = go.Figure(go.Sunburst(
+        ids=ids,
+        labels=labels,
+        parents=parents,
+        values=values,
+        branchvalues='total',
+        sort=False,
+        maxdepth=3,
+        marker=dict(colors=colors, line=dict(color=['white'] * len(ids), width=[1] * len(ids))),
+        customdata=info_labels,
+        insidetextfont=dict(color='#ffffff'),
         textinfo='label+percent root',
         insidetextorientation='radial',
         hovertemplate=(
             '<b>%{label}</b><br>'
-            'Recorded detections: %{customdata[0]}<br>'
-            'Detections / population benchmark: %{customdata[1]}<br>'
-            'Share of displayed detections: %{percentRoot:.1%}'
+            'Recorded detections: %{customdata[0]:,.0f}<br>'
+            'Detection / population benchmark: %{customdata[1]}<br>'
+            'Share of detections: %{percentRoot:.1%}'
             '<extra></extra>'
         ),
-        maxdepth=3,
     ))
-    fig_cit.update_layout(
-        height=730, margin=dict(l=12, r=12, t=15, b=15),
+    fig_sun.update_layout(
+        height=475,
+        margin=dict(l=0, r=0, t=8, b=8),
         paper_bgcolor='rgba(0,0,0,0)',
-        font=dict(family='Arial', size=13),
-        uniformtext=dict(minsize=10, mode='hide'),
+        font=dict(family='Arial', size=11),
+        uniformtext=dict(minsize=9, mode='hide'),
     )
-    st.plotly_chart(fig_cit, use_container_width=True)
+
+    # Render BOTH charts in one Streamlit HTML component: separate st.plotly_chart()
+    # elements cannot share true hover events with one another.
+    # get_plotlyjs() embeds JS locally (no CDN dependency when published).
+    payload = {
+        'map': json.loads(fig_map.to_json()),
+        'sun': json.loads(fig_sun.to_json()),
+        'sunburst_names': sunburst_countries,
+        'other_names': other_names,
+        'region_of': {name: REGION_OF.get(name, 'Other regions') for name in mappable_names},
+        'stats': {name: {
+            'detections': info['detections'],
+            'rate_pct': round(info['rate_pct'], 5),
+        } for name, info in citizenship_stats.items()},
+        'other_stats': other_stats,
+    }
+    # Protect the embedded script from special characters in country labels.
+    safe_json = json.dumps(payload, ensure_ascii=False).replace('</', '<\\/')
+    html_page = LINKED_CHART_HTML.replace('__PAYLOAD__', safe_json)
+    html_page = html_page.replace('/* __PLOTLY_JS__ */', get_plotlyjs())
+    components.html(html_page, height=670, scrolling=True)
     st.caption(
-        'Top 15 by recorded detections, grouped by display region; Other combines '
-        'all remaining citizenships. Slice size is the number of recorded detections, '
-        'NOT the observed detection rate. The rate is available on hover. '
-        'These figures cannot determine an individual’s immigration status.'
+        f'Map: {len(mappable_names)} countries with at least '
+        f'{MIN_POPULATION_BENCHMARK:,} benchmark residents, always displayed. '
+        f'Sunburst: {len(sunburst_countries)} countries each contributing at least '
+        f'{SUNBURST_MIN_DETECTION_SHARE:.0%} of recorded detections; all smaller '
+        'categories (including unmappable/unspecified citizenship) appear under Other. '
+        'Hovering a small mapped country highlights Other in the sunburst. '
+        'These are aggregate detection/population ratios, not individual probabilities.'
     )
 else:
-    st.info('No citizenship comparison data are available for these filters.')
+    st.info('No mappable citizenship data meet the population coverage threshold for this selection.')
 
 with st.expander('Model quality and data methodology',expanded=False):
     key='all_citizenships' if citizenship=='Total' else 'specific_citizenship'
