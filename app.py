@@ -123,7 +123,7 @@ if age_rows:
     st.plotly_chart(bars,use_container_width=True)
     st.caption('All age-specific comparisons use approximate denominators; they are not individual legal-status risks.')
 
-st.markdown('### Compare citizenships')
+st.markdown('### Compare detections / population')
 # Compare the top 15 citizenships by recorded detections.
 # Combine every remaining citizenship into "Other", including small cohorts.
 citizenship_groups = {}
@@ -217,6 +217,163 @@ if citizenship_stats:
         'including groups with fewer than 1,000 benchmark residents; '
         'its percentage is total detections divided by total benchmark population. '
         'These are detection/population ratios, not individual probabilities.'
+    )
+else:
+    st.info('No citizenship comparison data are available for these filters.')
+
+st.markdown('### Compare citizenships')
+st.caption('Interactive sunburst: inner ring = geographic region, outer ring = citizenship. '
+           'Slice area represents **recorded detection counts**, not probability. '
+           'Hover over a citizenship to view its observed detection/population benchmark.')
+
+# Covers the citizenship labels occurring in the provided Eurostat training.csv.
+# Borderline/transcontinental locations are assigned to a single display region
+# for visualisation only; this does not change model estimates.
+REGION_MEMBERS = {
+    'Europe': 'Albania|Andorra|Belarus|Bosnia and Herzegovina|Croatia|Holy See|Kosovo*|Moldova|Monaco|Montenegro|North Macedonia|Russia|San Marino|Ukraine|United Kingdom',
+    'Asia': 'Afghanistan|Armenia|Azerbaijan|Bahrain|Bangladesh|Bhutan|Brunei Darussalam|Cambodia|China|Georgia|India|Indonesia|Iran|Iraq|Israel|Japan|Jordan|Kazakhstan|Kuwait|Kyrgyzstan|Laos|Lebanon|Malaysia|Maldives|Mongolia|Myanmar/Burma|Nepal|North Korea|Oman|Pakistan|Palestine*|Philippines|Qatar|Saudi Arabia|Singapore|Sri Lanka|Syria|Taiwan|Tajikistan|Thailand|Timor-Leste|Türkiye|Turkmenistan|United Arab Emirates|Uzbekistan|Viet Nam|Yemen',
+    'Africa': 'Algeria|Angola|Benin|Botswana|Burkina Faso|Burundi|Cabo Verde|Cameroon|Central African Republic|Chad|Comoros|Congo|Côte d’Ivoire|Democratic Republic of the Congo|Djibouti|Egypt|Equatorial Guinea|Eritrea|Eswatini|Ethiopia|Gabon|Gambia, The|Ghana|Guinea|Guinea-Bissau|Kenya|Lesotho|Liberia|Libya|Madagascar|Malawi|Mali|Mauritania|Mauritius|Morocco|Mozambique|Namibia|Niger|Nigeria|Rwanda|São Tomé and Príncipe|Senegal|Seychelles|Sierra Leone|Somalia|South Africa|Sudan|Tanzania|Togo|Tunisia|Uganda|Western Sahara|Zambia|Zimbabwe',
+    'Americas': 'Antigua and Barbuda|Argentina|Bahamas|Barbados|Belize|Bolivia|Brazil|Canada|Chile|Colombia|Costa Rica|Cuba|Dominica|Dominican Republic|Ecuador|El Salvador|Grenada|Guatemala|Guyana|Haiti|Honduras|Jamaica|Mexico|Nicaragua|Panama|Paraguay|Peru|Saint Kitts and Nevis|Saint Lucia|Saint Vincent and the Grenadines|Suriname|Trinidad and Tobago|United States|Uruguay|Venezuela',
+    'Oceania': 'Australia|Federated States of Micronesia|Fiji|Kiribati|Marshall Islands|New Zealand|Palau|Papua New Guinea|Samoa|Solomon Islands|Tonga|Tuvalu|Vanuatu',
+    'Unspecified': 'Recognised non-citizens|Stateless|Unknown',
+}
+REGION_OF = {
+    name: region
+    for region, joined_names in REGION_MEMBERS.items()
+    for name in joined_names.split('|')
+}
+REGION_COLOR = {
+    'Europe': '#6473b5',
+    'Asia': '#9364aa',
+    'Africa': '#317e75',
+    'Americas': '#4a7cbe',
+    'Oceania': '#bf7f55',
+    'Unspecified': '#727983',
+    'Other regions': '#727983',
+}
+
+def lighter(hex_color, strength=0.17):
+    rgb = [int(hex_color[i:i + 2], 16) for i in (1, 3, 5)]
+    rgb = [round(n + (255 - n) * strength) for n in rgb]
+    return '#{:02x}{:02x}{:02x}'.format(*rgb)
+
+# Match the currently selected year, age band, sex, and reporting country.
+# As in the original chart, the sidebar citizenship selection is NOT used here:
+# this chart compares citizenships against one another.
+citizenship_groups = {}
+for r in rows:
+    if r['citizenship'] == 'Total' or r['year'] != year or r['age'] != age:
+        continue
+    if sex != 'All' and r['sex'] != sex:
+        continue
+    if country != 'All' and r['country'] != country:
+        continue
+    citizenship_groups.setdefault(r['citizenship'], []).append(r)
+
+citizenship_stats = {}
+for name, cohort in citizenship_groups.items():
+    stat = summarize_cohort(cohort)
+    if stat and stat['population_proxy'] > 0:
+        citizenship_stats[name] = stat
+
+if citizenship_stats:
+    # Top 15 by DETECTIONS, as in the previous version.
+    top_15 = sorted(
+        (name for name, stat in citizenship_stats.items()
+         if stat['population_proxy'] >= 1000),
+        key=lambda n: citizenship_stats[n]['detections'],
+        reverse=True,
+    )[:15]
+
+    # The remaining citizenships form ONE 'Other' slice.
+    other_rows = [
+        r for name, cohort in citizenship_groups.items()
+        if name not in top_15 for r in cohort
+    ]
+    other_stat = summarize_cohort(other_rows)
+
+    by_region = {}
+    for name in top_15:
+        region = REGION_OF.get(name, 'Other regions')
+        by_region.setdefault(region, []).append(name)
+
+    # Explicit hierarchy gives a region ring + citizenship ring.
+    ids = ['all']
+    labels = ['All detections']
+    parents = ['']
+    root_total = sum(citizenship_stats[n]['detections'] for n in top_15)
+    if other_stat:
+        root_total += other_stat['detections']
+    values = [root_total]
+    colors = ['#243f37']
+    details = [[f'{root_total:,}', '—']]
+
+    for region in sorted(
+        by_region,
+        key=lambda reg: sum(citizenship_stats[n]['detections'] for n in by_region[reg]),
+        reverse=True,
+    ):
+        region_names = sorted(
+            by_region[region],
+            key=lambda n: citizenship_stats[n]['detections'],
+            reverse=True,
+        )
+        region_count = sum(citizenship_stats[n]['detections'] for n in region_names)
+        reg_id = f'region:{region}'
+        ids.append(reg_id)
+        labels.append(region)
+        parents.append('all')
+        values.append(region_count)
+        colors.append(REGION_COLOR[region])
+        details.append([f'{region_count:,}', '—'])
+        for name in region_names:
+            stat = citizenship_stats[name]
+            ids.append(f'citizenship:{name}')
+            labels.append(name)
+            parents.append(reg_id)
+            values.append(stat['detections'])
+            colors.append(lighter(REGION_COLOR[region]))
+            details.append([f"{stat['detections']:,}", f"{stat['rate_pct']:.2f}%"])
+
+    # Appended LAST in the sunburst ordering. In a circle, unlike a bar chart,
+    # there is no fixed 'bottom' position; it is one standalone wedge.
+    if other_stat and other_stat['detections'] > 0:
+        ids.append('other')
+        labels.append('Other')
+        parents.append('all')
+        values.append(other_stat['detections'])
+        colors.append('#8c9599')
+        details.append([f"{other_stat['detections']:,}",
+                        f"{other_stat['rate_pct']:.2f}%" if other_stat['rate_pct'] is not None else '—'])
+
+    fig_cit = go.Figure(go.Sunburst(
+        ids=ids, labels=labels, parents=parents, values=values,
+        branchvalues='total', sort=False,
+        marker=dict(colors=colors, line=dict(color='white', width=1.5)),
+        customdata=details,
+        textinfo='label+percent root',
+        insidetextorientation='radial',
+        hovertemplate=(
+            '<b>%{label}</b><br>'
+            'Recorded detections: %{customdata[0]}<br>'
+            'Detections / population benchmark: %{customdata[1]}<br>'
+            'Share of displayed detections: %{percentRoot:.1%}'
+            '<extra></extra>'
+        ),
+        maxdepth=3,
+    ))
+    fig_cit.update_layout(
+        height=730, margin=dict(l=12, r=12, t=15, b=15),
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(family='Arial', size=13),
+        uniformtext=dict(minsize=10, mode='hide'),
+    )
+    st.plotly_chart(fig_cit, use_container_width=True)
+    st.caption(
+        'Top 15 by recorded detections, grouped by display region; Other combines '
+        'all remaining citizenships. Slice size is the number of recorded detections, '
+        'NOT the observed detection rate. The rate is available on hover. '
+        'These figures cannot determine an individual’s immigration status.'
     )
 else:
     st.info('No citizenship comparison data are available for these filters.')
