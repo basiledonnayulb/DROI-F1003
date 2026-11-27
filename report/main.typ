@@ -71,7 +71,7 @@ D'après nous, notre prototype répond donc aux principales caractéristiques de
   [
     #figure(
       image("images/Variables_disponibles.png", width: 100%),
-      caption: [Les variables disponibles],
+      caption: [Les variables disponibles.],
     )
   ],
 )
@@ -92,7 +92,7 @@ La partie principale de l'application présente d'abord une estimation produite 
 
 #figure(
   image("images/Estimation_modèle_et_indicateurs.png", width: 100%),
-  caption: [L'estimation IA et les trois indicateurs complémentaires],
+  caption: [L'estimation IA et les trois indicateurs complémentaires.],
 )
 
 Plusieurs visualisations permettent ensuite d'explorer les résultats.
@@ -103,15 +103,21 @@ Un premier graphique présente l'évolution du taux de détection entre 2018 et 
 
 Cette représentation permet d'identifier les variations temporelles et d'observer dans quelle mesure le modèle reproduit les tendances historiques.
 
+#figure(
+  image("images/Ligne_du_temps_estimation.png", width: 100%),
+  caption: [La ligne du temps des estimations.],
+)
+
 === Comparaison des tranches d'âge et du sexe
 
-Un deuxième graphique compare les différentes tranches d'âge sous la forme de barres verticales empilées.
-
-Chaque barre représente le taux de détection total de la tranche d'âge concernée. Elle est divisée selon les catégories de sexe, avec une couleur rose pour les femmes, bleue pour les hommes et grise pour les données dont le sexe serait inconnu.
+Un deuxième graphique compare les différentes tranches d'âge sous la forme de barres verticales empilées. Chaque barre représente le taux de détection total de la tranche d'âge concernée. Elle est divisée selon les catégories de sexe.
 
 La hauteur totale de la barre correspond au taux observé pour l'ensemble du groupe d'âge. Les segments représentent la contribution de chaque catégorie au total, tandis que les taux propres aux hommes et aux femmes sont accessibles au survol.
 
-Dans la version actuelle des données, seules les catégories hommes et femmes sont disponibles séparément. La catégorie inconnue est donc prévue dans l'interface, mais ne dispose pas de valeurs distinctes.
+#figure(
+  image("images/Comparaison_des_tranches_age.png", width: 100%),
+  caption: [Graphique représentant la comparaison des tranches d'âge et de sexe.],
+)
 
 === Carte mondiale et diagramme circulaire interactif
 

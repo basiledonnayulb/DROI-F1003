@@ -443,15 +443,6 @@ if age_profiles:
         hovermode='closest',
     )
     st.plotly_chart(bars, use_container_width=True)
-    st.caption(
-        'Les segments colorés forment la barre entière, car chacun utilise le '
-        'même dénominateur de population pour la tranche d’âge. Les taux de détection propres à chaque sexe '
-        'utilisent des dénominateurs distincts et apparaissent au survol, sans être additionnés. '
-        'L’export Eurostat fourni ne contient que les catégories masculine et féminine ; '
-        'la catégorie Inconnu est donc indisponible, et non nécessairement égale à zéro. '
-        'Les dénominateurs de population par âge sont approximatifs. '
-        'Il s’agit de taux de détection agrégés, et non de probabilités individuelles de statut juridique.'
-    )
 else:
     st.info('Aucune donnée par tranche d’âge n’est disponible pour cette sélection.')
 
