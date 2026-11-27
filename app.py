@@ -331,6 +331,14 @@ LINKED_CHART_HTML = r"""<!doctype html>
 <style>
   :root {font-family:Arial, sans-serif;color:#273d32}
   body {margin:0;background:transparent}
+  .toolbar {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:4px 2px 12px;flex-wrap:wrap}
+  .toolbar-title {font-weight:750;font-size:13px;color:#345a45}
+  .toggle-group {display:inline-flex;align-items:center;gap:3px;background:#edf3ee;border:1px solid #dfe9e1;
+       border-radius:12px;padding:4px;box-shadow:0 1px 2px #20352a0a}
+  .toggle-btn {font:600 12px Arial,sans-serif;cursor:pointer;border:0;border-radius:8px;color:#577061;
+      padding:10px 12px;background:transparent;transition:background .25s ease,color .25s ease, box-shadow .25s ease}
+  .toggle-btn.active {background:#fff;color:#24543b;box-shadow:0 2px 8px #00000014}
+  .toggle-btn:focus-visible {outline:2px solid #296646;outline-offset:2px}
   .charts {display:grid;grid-template-columns:minmax(0,1.26fr) minmax(0,1fr);gap:10px}
   .panel {min-width:0;background:#fff;border:1px solid #dfe7df;border-radius:12px;overflow:hidden}
   .heading {padding:12px 16px 0;font-size:13px;font-weight:700;color:#335a45}
@@ -342,16 +350,38 @@ LINKED_CHART_HTML = r"""<!doctype html>
   .legend {display:flex;flex-wrap:wrap;gap:12px;margin:9px 5px 0;font-size:11px;color:#4f6257}
   .legend span {display:flex;align-items:center;gap:5px}
   .legend i {width:11px;height:11px;border-radius:3px;display:inline-block}
-  @media(max-width:680px) {.charts {grid-template-columns:1fr} #world,#sun{height:375px}}
+  /* CSS transitions don't ask Plotly to rebuild the whole SVG on each hover. */
+  #world path.choroplethlocation, #sun .slice path.surface {
+      transition:fill 340ms cubic-bezier(.22,1,.36,1), opacity 340ms cubic-bezier(.22,1,.36,1),
+                 stroke-width 340ms cubic-bezier(.22,1,.36,1),
+                 stroke 340ms cubic-bezier(.22,1,.36,1),
+                 filter 340ms cubic-bezier(.22,1,.36,1);
+  }
+  #sun .slice .slicetext {transition:opacity 340ms cubic-bezier(.22,1,.36,1);}
+  @media(max-width:680px) {
+      .charts {grid-template-columns:1fr} #world,#sun{height:375px}
+      .toggle-group {width:100%;display:flex} .toggle-btn {flex:1;padding:10px 4px;font-size:11px}
+  }
+  @media(prefers-reduced-motion:reduce) {
+      #world path.choroplethlocation, #sun .slice path.surface,
+      #sun .slice .slicetext, .toggle-btn {transition:none!important}
+  }
 </style>
 <script>/* __PLOTLY_JS__ */</script>
 </head><body>
+<div class="toolbar">
+  <div class="toolbar-title">Explore citizenship statistics <span id="metric-indicator" style="font-weight:500;color:#64776b;margin-left:10px">Showing: detections / population (%)</span></div>
+  <div class="toggle-group" role="group" aria-label="Map colour metric">
+    <button class="toggle-btn active" type="button" data-metric="rate" aria-pressed="true">Detections / population</button>
+    <button class="toggle-btn" type="button" data-metric="count" aria-pressed="false">Recorded detections</button>
+  </div>
+</div>
 <div class="charts">
   <div class="panel"><div class="heading">World map by citizenship</div>
-     <div class="sub">All mappable citizenships with sufficient data</div>
+     <div class="sub" id="map-sub">Detection-to-population ratio · all mappable citizenships with sufficient data</div>
      <div id="world"></div></div>
   <div class="panel"><div class="heading">Citizenship distribution</div>
-     <div class="sub">Continent → citizenship · smaller slices grouped as Other</div>
+     <div class="sub" id="sun-sub">Labels and shades = detections / population (%) · area = recorded detections</div>
      <div id="sun"></div></div>
 </div>
 <div class="legend">
@@ -362,145 +392,270 @@ LINKED_CHART_HTML = r"""<!doctype html>
  <span><i style="background:#bf7f55"></i>Oceania</span>
  <span><i style="background:#8c9599"></i>Other</span>
 </div>
-<div id="status" aria-live="polite">Hover over a country on the map or a slice on the sunburst to highlight the corresponding area in both charts.</div>
+<div id="status" aria-live="polite">Hover over a country or sunburst slice to highlight it in both charts.</div>
 <script>
 'use strict';
 const P = __PAYLOAD__;
 const world = document.getElementById('world');
 const sun = document.getElementById('sun');
 const status = document.getElementById('status');
-const sunTrace = P.sun.data[0];
-const allIds = sunTrace.ids;
-const baseSunColors = Array.from(sunTrace.marker.colors);
-const baseMapWidths = P.map.data.map(t => t.locations.map(() => .55));
-const baseMapColors = P.map.data.map(t => t.locations.map(() => '#ffffff'));
+const shortCount = n => Number(n).toLocaleString('en-US');
 const bigNames = new Set(P.sunburst_names);
 const otherNames = new Set(P.other_names);
-const mapNames = new Set(Object.keys(P.region_of));
-const shortCount = n => Number(n).toLocaleString('en-US');
+const nameByIso = Object.fromEntries(P.map.data.flatMap(t => t.locations.map((iso,i) => [iso, t.customdata[i][0]])));
+let metricMode = 'rate';
 let selectedFocus = null;
-let changing = false;
-let queued; // undefined means no queued focus; null means reset
-let sunReady = false;
 let mapReady = false;
+let sunReady = false;
+let mapPaths = [];
+let sunSlices = [];
+let metricBusy = false;
+let pendingMetric = null;
 
-// A single focus may identify one country, an entire region or "Other".
+// The sunburst keeps additive count-based slice sizes; its shade changes with the metric.
+function lighten(hex, strength) {
+  const nums = [1,3,5].map(i => parseInt(hex.slice(i,i+2),16));
+  return '#' + nums.map(v => Math.round(v+(255-v)*strength).toString(16).padStart(2,'0')).join('');
+}
+function countryShade(name) {
+  const s=P.stats[name];
+  if (!s) return '#8c9599';
+  const base=P.region_colors[P.region_of[name]] || '#727983';
+  const r=metricMode==='rate'
+    ? s.rate_pct/Math.max(P.max_rate,1e-9)
+    : Math.log1p(s.detections)/Math.max(Math.log1p(P.max_count),1e-9);
+  return lighten(base,0.77 - 0.70*Math.max(0,Math.min(1,r)));
+}
+
 function mapMatches(name, focus) {
-  if (!focus) return false;
+  if (!focus) return true;
   if (focus.type === 'country') return name === focus.name;
   if (focus.type === 'region') return P.region_of[name] === focus.name;
   if (focus.type === 'other') return otherNames.has(name);
   return false;
 }
 function sunMatches(id, focus) {
-  if (!focus) return true;
-  if (id === 'root') return true;
+  if (!focus || id === 'root') return true;
   if (focus.type === 'other') return id === 'other';
-  if (focus.type === 'region') {
-    if (id === 'r:' + focus.name) return true;
-    if (id.startsWith('c:')) return P.region_of[id.slice(2)] === focus.name;
-    return false;
-  }
+  if (focus.type === 'region') return id === 'r:' + focus.name ||
+    (id.startsWith('c:') && P.region_of[id.slice(2)] === focus.name);
   if (focus.type === 'country') {
-    const region = P.region_of[focus.name];
-    const idToHighlight = bigNames.has(focus.name) ? 'c:' + focus.name : 'other';
-    return id === idToHighlight || id === 'r:' + region;
+    const group = bigNames.has(focus.name) ? 'c:' + focus.name : 'other';
+    return id === group || (bigNames.has(focus.name) && id === 'r:' + P.region_of[focus.name]);
   }
   return false;
 }
 function statusText(focus) {
-  if (!focus) return 'Hover over a country on the map or a slice on the sunburst to highlight the corresponding area in both charts.';
+  if (!focus) return metricMode === 'rate'
+    ? 'Hover over a country or sunburst slice. Map shading represents detections / resident population.'
+    : 'Hover over a country or sunburst slice. Map shading represents the number of recorded detections.';
   if (focus.type === 'region') return focus.name + ' · highlighted region';
   if (focus.type === 'other') {
-     const n = P.other_stats?.detections ?? 0;
-     return 'Other · ' + shortCount(n) + ' recorded detections from all smaller or unmappable categories';
+    const n = P.other_stats?.detections ?? 0;
+    return 'Other · ' + shortCount(n) + ' recorded detections across smaller or unmappable categories';
   }
   const s = P.stats[focus.name];
   if (!s) return focus.name;
-  const groupNote = bigNames.has(focus.name) ? '' : ' · part of “Other” in the sunburst';
-  return focus.name + ' · ' + s.rate_pct.toFixed(2) + '% detected cases / population benchmark · '
-       + shortCount(s.detections) + ' recorded detections' + groupNote;
+  const note = bigNames.has(focus.name) ? '' : ' · included in “Other” on the sunburst';
+  const primary = metricMode === 'rate'
+    ? s.rate_pct.toFixed(2) + '% detections / population'
+    : shortCount(s.detections) + ' recorded detections';
+  const secondary = metricMode === 'rate'
+    ? shortCount(s.detections) + ' recorded detections'
+    : s.rate_pct.toFixed(2) + '% detections / population';
+  return focus.name + ' · ' + primary + ' · ' + secondary + note;
 }
-async function renderFocus(focus) {
-  changing = true;
+
+// Read Plotly's attached D3 data so DOM ordering never causes country mismatches.
+function indexMapPaths() {
+  mapPaths = [];
+  const traces = world.querySelectorAll('g.choroplethlayer g.trace');
+  traces.forEach((trace, ti) => {
+    const fallbackCodes = P.map.data[ti]?.locations || [];
+    trace.querySelectorAll('path.choroplethlocation').forEach((path, pi) => {
+      const d = path.__data__ || {};
+      const iso = d.loc || d.location || d.id || d.properties?.id || fallbackCodes[pi];
+      const name = nameByIso[iso];
+      if (name) mapPaths.push({path, name});
+    });
+  });
+  // Some Plotly versions omit the trace wrapper in the SVG hierarchy.
+  if (!mapPaths.length) {
+    world.querySelectorAll('path.choroplethlocation').forEach(path => {
+      const d = path.__data__ || {};
+      const name = nameByIso[d.loc || d.location || d.id];
+      if (name) mapPaths.push({path, name});
+    });
+  }
+}
+function indexSunSlices() {
+  sunSlices = [];
+  sun.querySelectorAll('g.slice').forEach(g => {
+    const id = g.__data__?.data?.id || g.__data__?.data?.data?.id;
+    const path = g.querySelector('path.surface');
+    if (id && path) sunSlices.push({id,path,text:g.querySelector('g.slicetext')});
+  });
+}
+
+// Crossfade via CSS transitions, not Plotly.restyle on every hover.
+function applyFocus(focus) {
   selectedFocus = focus;
   status.textContent = statusText(focus);
-  const tasks = [];
-  for (let ti = 0; mapReady && ti < P.map.data.length; ti++) {
-    const names = P.map.data[ti].customdata.map(x => x[0]);
-    const widths = names.map(name => focus && mapMatches(name, focus) ? 3 : .55);
-    const strokes = names.map(name => focus && mapMatches(name, focus) ? '#1c332d' : '#ffffff');
-    tasks.push(Plotly.restyle(world, {
-      'marker.line.width': [widths],
-      'marker.line.color': [strokes]
-    }, [ti]));
+  for (const {path,name} of mapPaths) {
+    const matched = mapMatches(name,focus);
+    path.style.opacity = !focus || matched ? '1' : '.22';
+    path.style.stroke = focus && matched ? '#1c332d' : '#ffffff';
+    path.style.strokeWidth = focus && matched ? '2.7px' : '.55px';
+    path.style.filter = focus && matched ? 'brightness(1.08) saturate(1.16)' : 'none';
+    // Set the actual path fill for the selected metric. This crossfades smoothly
+    // and does not depend on Plotly rebuilding the map trace.
+    path.style.fill = countryShade(name);
   }
-  const cols = allIds.map((id, i) => {
-    if (!focus || sunMatches(id, focus)) return baseSunColors[i];
-    // Fade non-matching areas without changing the continent color scheme.
-    return '#e7ece9';
-  });
-  const widths = allIds.map(id => focus && sunMatches(id, focus) && id !== 'root' ? 3 : 1);
-  const strokes = allIds.map(id => focus && sunMatches(id, focus) && id !== 'root' ? '#1c332d' : '#ffffff');
-  if (sunReady) tasks.push(Plotly.restyle(sun, {
-    'marker.colors': [cols],
-    'marker.line.width': [widths],
-    'marker.line.color': [strokes]
-  }, [0]));
-  try { await Promise.all(tasks); } catch (e) { console.warn('Linked chart highlight error:', e); }
-  changing = false;
-  if (queued !== undefined) {
-    const next = queued;
-    queued = undefined;
-    if (JSON.stringify(next) !== JSON.stringify(selectedFocus)) renderFocus(next);
+  for (const {id,path,text} of sunSlices) {
+    const matched = sunMatches(id,focus);
+    path.style.opacity = !focus || matched ? '1' : '.22';
+    path.style.stroke = focus && matched && id !== 'root' ? '#1c332d' : '#ffffff';
+    path.style.strokeWidth = focus && matched && id !== 'root' ? '2.7px' : '1px';
+    path.style.filter = focus && matched && id !== 'root' ? 'brightness(1.07) saturate(1.15)' : 'none';
+    if (id.startsWith('c:')) path.style.fill = countryShade(id.slice(2));
+    if (text) text.style.opacity = !focus || matched ? '1' : '.29';
   }
 }
 function requestFocus(focus) {
-  if (!sunReady) return;
-  if (changing) { queued = focus; return; }
-  if (JSON.stringify(focus) === JSON.stringify(selectedFocus)) return;
-  renderFocus(focus);
+  if (JSON.stringify(focus) !== JSON.stringify(selectedFocus)) applyFocus(focus);
 }
-const opts = {responsive:true, displayModeBar:false, scrollZoom:false};
-// Bind each chart independently: a slow/unavailable map tile must not disable the sunburst.
-Plotly.newPlot(sun, P.sun.data, P.sun.layout, opts).then(() => {
-  sunReady = true;
-  sun.on('plotly_hover', ev => {
-    const pt = ev.points?.[0];
-    if (!pt) return;
-    const nodeId = pt.id || pt.data?.ids?.[pt.pointNumber];
-    if (!nodeId || nodeId === 'root') return requestFocus(null);
-    if (nodeId === 'other') return requestFocus({type:'other'});
-    if (nodeId.startsWith('r:')) return requestFocus({type:'region',name:nodeId.slice(2)});
-    if (nodeId.startsWith('c:')) return requestFocus({type:'country',name:nodeId.slice(2)});
+
+const rateHover = '<b>%{customdata[0]}</b><br>' +
+  'Detections / population: %{customdata[3]:.2f}%<br>' +
+  'Recorded detections: %{customdata[1]:,.0f}<br>' +
+  'Resident population benchmark: %{customdata[2]:,.0f}<extra></extra>';
+const countHover = '<b>%{customdata[0]}</b><br>' +
+  'Recorded detections: %{customdata[1]:,.0f}<br>' +
+  'Detections / population: %{customdata[3]:.2f}%<br>' +
+  'Resident population benchmark: %{customdata[2]:,.0f}<extra></extra>';
+
+const rateSunHover = '<b>%{label}</b><br>' +
+  'Detections / population: %{customdata[1]}<br>' +
+  'Recorded detections: %{customdata[0]:,.0f}<br>' +
+  'Share of all detections: %{percentRoot:.1%}<extra></extra>';
+const countSunHover = '<b>%{label}</b><br>' +
+  'Recorded detections: %{customdata[0]:,.0f}<br>' +
+  'Detections / population: %{customdata[1]}<br>' +
+  'Share of all detections: %{percentRoot:.1%}<extra></extra>';
+
+async function updateMetric(mode) {
+  if (mode !== 'rate' && mode !== 'count') return;
+  metricMode = mode;
+  document.querySelectorAll('[data-metric]').forEach(button => {
+    const active = button.dataset.metric === metricMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  document.getElementById('metric-indicator').textContent = metricMode === 'rate'
+    ? 'Showing: detections / population (%)'
+    : 'Showing: recorded detections (people detected)';
+  document.getElementById('map-sub').textContent = metricMode === 'rate'
+    ? 'Colour intensity = detection / population ratio (%) · all available countries'
+    : 'Colour intensity = recorded detections (logarithmic shading) · all available countries';
+  document.getElementById('sun-sub').textContent = metricMode === 'rate'
+    ? 'Labels and shades = detection / population ratio (%) · area = recorded detections'
+    : 'Labels and shades = recorded detections · area = recorded detections';
+
+  // Apply colours immediately to the existing SVG; their CSS transition gives
+  // 340ms crossfades even if Plotly redraws are slow or geographic assets fail.
+  applyFocus(selectedFocus);
+
+  if (metricBusy) {pendingMetric = mode; return;}
+  metricBusy = true;
+  try {
+    // Unlike the previous implementation, the sunburst's VISIBLE country
+    // values change with the toggle (not only the tooltip and colour).
+    if (sunReady) {
+      await Plotly.restyle(sun, {
+        texttemplate: [metricMode === 'rate'
+          ? '%{label}<br>%{customdata[1]}'
+          : '%{label}<br>%{customdata[2]}'],
+        hovertemplate: [metricMode === 'rate' ? rateSunHover : countSunHover],
+      }, [0]);
+      indexSunSlices();
+      applyFocus(selectedFocus);
+    }
+    if (mapReady) {
+      // Keep Plotly's underlying z array consistent with what the SVG shows.
+      // Countries always use the same (global) scale across regions.
+      const traces = P.map.data.map(t => t.customdata.map(item =>
+        metricMode === 'rate' ? item[3] : Math.log1p(item[1])));
+      const zmax = metricMode === 'rate' ? P.max_rate : Math.log1p(P.max_count);
+      const indices = P.map.data.map((_,i) => i);
+      await Plotly.restyle(world, {
+        z: traces,
+        zmin: indices.map(() => 0),
+        zmax: indices.map(() => Math.max(zmax, 1e-9)),
+        hovertemplate: indices.map(() => metricMode === 'rate' ? rateHover : countHover),
+      }, indices);
+      indexMapPaths();
+      applyFocus(selectedFocus);
+    }
+  } catch(e) {console.warn('Unable to switch metric:', e);}
+  metricBusy = false;
+  if (pendingMetric && pendingMetric !== mode) {
+    const next = pendingMetric;
+    pendingMetric = null;
+    updateMetric(next);
+  } else pendingMetric = null;
+}
+
+for (const button of document.querySelectorAll('[data-metric]')) {
+  button.addEventListener('click', () => updateMetric(button.dataset.metric));
+}
+
+const opts={responsive:true,displayModeBar:false,scrollZoom:false};
+// Render independently, so a geographically unavailable map doesn't block the sunburst.
+Plotly.newPlot(sun,P.sun.data,P.sun.layout,opts).then(() => {
+  sunReady=true;
+  indexSunSlices();
+  sun.on('plotly_hover',ev => {
+    const pt=ev.points?.[0];
+    const id=pt?.id || pt?.data?.ids?.[pt?.pointNumber];
+    if (!id || id==='root') return requestFocus(null);
+    if (id==='other') return requestFocus({type:'other'});
+    if (id.startsWith('r:')) return requestFocus({type:'region',name:id.slice(2)});
+    if (id.startsWith('c:')) return requestFocus({type:'country',name:id.slice(2)});
   });
   sun.addEventListener('mouseleave', () => requestFocus(null));
-}).catch(error => {status.textContent = 'Could not render sunburst: ' + error.message;});
-Plotly.newPlot(world, P.map.data, P.map.layout, opts).then(() => {
-  mapReady = true;
-  world.on('plotly_hover', ev => {
-    const pt = ev.points?.[0];
-    const name = pt?.customdata?.[0];
-    if (name) requestFocus({type:'country', name:name});
+  applyFocus(selectedFocus);
+  // In case the user changed metrics while Plotly was loading.
+  if (metricMode === 'count') updateMetric('count');
+}).catch(e => {status.textContent='Could not render sunburst: '+e.message;});
+Plotly.newPlot(world,P.map.data,P.map.layout,opts).then(() => {
+  mapReady=true;
+  indexMapPaths();
+  world.on('plotly_hover',ev => {
+    const name=ev.points?.[0]?.customdata?.[0];
+    if(name) requestFocus({type:'country',name});
   });
   world.addEventListener('mouseleave', () => requestFocus(null));
-  if (selectedFocus) renderFocus(selectedFocus);
-}).catch(error => {console.warn('Could not render world map:', error);});
-window.addEventListener('resize', () => {
-  if (mapReady) Plotly.Plots.resize(world);
-  if (sunReady) Plotly.Plots.resize(sun);
+  // A metric selection can happen before a slow map has finished rendering.
+  if (metricMode === 'count') updateMetric('count');
+  else applyFocus(selectedFocus);
+}).catch(e => {console.warn('Could not render world map:',e);});
+window.addEventListener('resize',()=>{
+  if(mapReady) Plotly.Plots.resize(world);
+  if(sunReady) Plotly.Plots.resize(sun);
+  // Keep the index current when Plotly redraws on responsive resize.
+  window.requestAnimationFrame(()=>{indexMapPaths();indexSunSlices();applyFocus(selectedFocus);});
 });
 </script></body></html>"""
 
 # Linked map + sunburst: same data and palette, two-way hover highlighting.
 # Map: every mappable citizenship with at least 1,000 benchmark residents.
 # Pie: all sufficiently large slices; the remaining countries form "Other".
-st.markdown('### Citizenship: world map and detection distribution')
+st.markdown('### Citizenship: linked world map and distribution')
 st.caption(
     'Worldwide view of **countries of citizenship**, not EU reporting countries. '
-    'Color families represent regions; intensity represents observed detections '
-    'relative to the resident population benchmark. Hover over either view to '
-    'highlight the corresponding country in the other view.'
+    'Use the metric switch above the map to compare either aggregate detection-to-population '
+    'ratios or numbers of recorded detections. Geographic colors represent regions. '
+    'Hover over either chart to highlight the corresponding country smoothly.'
 )
 
 citizenship_groups = {}
@@ -571,6 +726,7 @@ if mappable_names:
                 name,
                 citizenship_stats[name]['detections'],
                 citizenship_stats[name]['population_proxy'],
+                citizenship_stats[name]['rate_pct'],
             ] for name in names_in_region],
             hovertemplate=(
                 '<b>%{customdata[0]}</b><br>'
@@ -609,11 +765,13 @@ if mappable_names:
         by_region.setdefault(region, []).append(name)
 
     ids = ['root']
-    labels = ['All detections']
+    labels = ['All citizenships']
     parents = ['']
     values = [total_detections]
     colors = ['#243f37']
-    info_labels = [[total_detections, '—']]
+    total_population = sum(info['population_proxy'] for info in citizenship_stats.values())
+    root_rate = f'{100 * total_detections / total_population:.2f}%' if total_population > 0 else '—'
+    info_labels = [[total_detections, root_rate, f'{total_detections:,}']]
 
     for region in sorted(
         by_region,
@@ -632,15 +790,19 @@ if mappable_names:
         parents.append('root')
         values.append(region_total)
         colors.append(REGION_COLOR[region])
-        info_labels.append([region_total, '—'])
+        region_population = sum(citizenship_stats[n]['population_proxy'] for n in names_in_region)
+        region_rate = f'{100 * region_total / region_population:.2f}%' if region_population > 0 else '—'
+        info_labels.append([region_total, region_rate, f'{region_total:,}'])
         for name in names_in_region:
             stat = citizenship_stats[name]
             ids.append('c:' + name)
             labels.append(name)
             parents.append(reg_id)
             values.append(stat['detections'])
-            colors.append(lighter(REGION_COLOR[region], .16))
-            info_labels.append([stat['detections'], f"{stat['rate_pct']:.2f}%"])
+            # Initial country shading reflects the default detection/population metric.
+            relative = stat['rate_pct'] / max_rate
+            colors.append(lighter(REGION_COLOR[region], .77 - .70 * max(0, min(1, relative))))
+            info_labels.append([stat['detections'], f"{stat['rate_pct']:.2f}%", f"{stat['detections']:,}"])
 
     if other_stats and other_stats['detections'] > 0:
         ids.append('other')
@@ -650,7 +812,8 @@ if mappable_names:
         colors.append('#8c9599')
         info_labels.append([
             other_stats['detections'],
-            f"{other_stats['rate_pct']:.2f}%" if other_stats['rate_pct'] is not None else '—'
+            f"{other_stats['rate_pct']:.2f}%" if other_stats['rate_pct'] is not None else '—',
+            f"{other_stats['detections']:,}"
         ])
 
     fig_sun = go.Figure(go.Sunburst(
@@ -664,12 +827,12 @@ if mappable_names:
         marker=dict(colors=colors, line=dict(color=['white'] * len(ids), width=[1] * len(ids))),
         customdata=info_labels,
         insidetextfont=dict(color='#ffffff'),
-        textinfo='label+percent root',
+        texttemplate='%{label}<br>%{customdata[1]}',
         insidetextorientation='radial',
         hovertemplate=(
             '<b>%{label}</b><br>'
-            'Recorded detections: %{customdata[0]:,.0f}<br>'
             'Detection / population benchmark: %{customdata[1]}<br>'
+            'Recorded detections: %{customdata[0]:,.0f}<br>'
             'Share of detections: %{percentRoot:.1%}'
             '<extra></extra>'
         ),
@@ -687,6 +850,9 @@ if mappable_names:
     # get_plotlyjs() embeds JS locally (no CDN dependency when published).
     payload = {
         'map': json.loads(fig_map.to_json()),
+        'max_rate': max_rate,
+        'max_count': max(citizenship_stats[n]['detections'] for n in mappable_names),
+        'region_colors': REGION_COLOR,
         'sun': json.loads(fig_sun.to_json()),
         'sunburst_names': sunburst_countries,
         'other_names': other_names,
@@ -709,6 +875,8 @@ if mappable_names:
         f'{SUNBURST_MIN_DETECTION_SHARE:.0%} of recorded detections; all smaller '
         'categories (including unmappable/unspecified citizenship) appear under Other. '
         'Hovering a small mapped country highlights Other in the sunburst. '
+        'The toggle changes both map and sunburst colours, country labels, and metric priority. '
+        'Sunburst slice AREA always represents recorded detections: ratios cannot be summed. '
         'These are aggregate detection/population ratios, not individual probabilities.'
     )
 else:
