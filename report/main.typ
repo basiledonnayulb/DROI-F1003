@@ -38,6 +38,13 @@ exemple d'une formule : `O_max + 2 × Hyperperiod`.
 
 exemple d'une citation : @freertos
 
+TODO : choisir les sources et les ajouter ceci dans refs.bib
+- https://ec.europa.eu/eurostat/databrowser/view/migr_eipre__custom_24484187/default/table
+
+- https://ec.europa.eu/eurostat/databrowser/view/migr_pop1ctz__custom_24484552/default/table
+
+- 
+
 
 = Conclusion
 
