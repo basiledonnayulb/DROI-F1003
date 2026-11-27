@@ -112,18 +112,131 @@ if points:
     st.plotly_chart(graph,use_container_width=True)
 
 st.markdown('### Compare age groups')
-age_rows=[]
-for band in ['Under 18','18–34','35+']:
-    sample=choose_rows(rows,band,sex,country,citizenship,year)
-    agg=summarize_cohort(sample)
-    if agg: age_rows.append((band,agg['rate_pct']))
-if age_rows:
-    bars=go.Figure(go.Bar(x=[x[0] for x in age_rows],y=[x[1] for x in age_rows],
-        marker_color=['#aac9b2','#528968','#305b44'],text=[f'{x[1]:.2f}%' for x in age_rows],textposition='outside'))
-    bars.update_layout(height=295,margin=dict(l=10,r=15,t=16,b=20),
-        yaxis_title='Observed benchmark (%)',paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(bars,use_container_width=True)
-    st.caption('All age-specific comparisons use approximate denominators; they are not individual legal-status risks.')
+st.caption('Each bar is the total observed detection / population benchmark, '
+           'split by the sex recorded in the source data. '
+           'Hover to see both the contribution to the total and the sex-specific rate.')
+
+# Use the full sex breakdown regardless of the sidebar's sex selection so
+# that women and men can always be compared on the same chart.
+AGE_BANDS = ['Under 18', '18–34', '35+']
+SEX_SEGMENTS = [
+    ('Women', 'Females', '#c68eab'),  # muted pink
+    ('Men', 'Males', '#6473b5'),      # matches the map's European blue
+    ('Unknown', None, '#8c9599'),   # map's neutral grey
+]
+
+age_profiles = []
+for band in AGE_BANDS:
+    band_rows = choose_rows(rows, band, 'All', country, citizenship, year)
+    if not band_rows:
+        continue
+    population = sum(float(r['population_proxy']) for r in band_rows)
+    detections = sum(float(r['detections']) for r in band_rows)
+    if population <= 0:
+        continue
+
+    female_rows = [r for r in band_rows if r['sex'] == 'Females']
+    male_rows = [r for r in band_rows if r['sex'] == 'Males']
+    # Any other recorded sex category (if it becomes available in future data)
+    # is grouped as Unknown. The CURRENT training data has none.
+    unknown_rows = [r for r in band_rows if r['sex'] not in ('Females', 'Males')]
+
+    groups = {'Women': female_rows, 'Men': male_rows, 'Unknown': unknown_rows}
+    segments = {}
+    for label, sex_rows in groups.items():
+        n = sum(float(r['detections']) for r in sex_rows)
+        n_pop = sum(float(r['population_proxy']) for r in sex_rows)
+        segments[label] = {
+            'detections': n,
+            'population': n_pop,
+            # This CONTRIBUTION is what is stacked: the denominator is the
+            # SAME across women, men and unknown, so bars add up to the total.
+            'contribution_pct': 100 * n / population,
+            # The within-sex rate is different and cannot be stacked.
+            'sex_rate_pct': (100 * n / n_pop) if n_pop > 0 else None,
+        }
+
+    age_profiles.append({
+        'age': band,
+        'total_pct': 100 * detections / population,
+        'population': population,
+        'detections': detections,
+        'segments': segments,
+    })
+
+if age_profiles:
+    age_names = [p['age'] for p in age_profiles]
+    bars = go.Figure()
+    for label, _sex, color in SEX_SEGMENTS:
+        segment_values = [p['segments'][label]['contribution_pct'] for p in age_profiles]
+        bars.add_trace(go.Bar(
+            name=label,
+            x=age_names,
+            y=segment_values,
+            marker_color=color,
+            text=[f'{v:.2f}%' if v > 0 else '' for v in segment_values],
+            textposition='inside',
+            insidetextanchor='middle',
+            textfont=dict(color='white', size=12),
+            customdata=[[
+                p['segments'][label]['detections'],
+                p['segments'][label]['population'],
+                p['segments'][label]['sex_rate_pct']
+                if p['segments'][label]['sex_rate_pct'] is not None else -1,
+                p['total_pct'],
+            ] for p in age_profiles],
+            hovertemplate=(
+                '<b>%{x} · ' + label + '</b><br>'
+                'Contribution to total rate: %{y:.3f}%<br>'
+                'Recorded detections: %{customdata[0]:,.0f}<br>'
+                'Sex-specific population benchmark: %{customdata[1]:,.0f}<br>'
+                'Sex-specific rate: %{customdata[2]:.3f}%<br>'
+                'Full age-group rate: %{customdata[3]:.3f}%'
+                '<extra></extra>'
+            ) if label != 'Unknown' else (
+                '<b>%{x} · Unknown</b><br>'
+                'Contribution to total rate: %{y:.3f}%<br>'
+                'Recorded detections: %{customdata[0]:,.0f}'
+                '<extra></extra>'
+            ),
+        ))
+
+    # Display the complete observed age-group rate above each stacked bar.
+    bars.add_trace(go.Scatter(
+        x=age_names,
+        y=[p['total_pct'] for p in age_profiles],
+        mode='text',
+        text=[f"<b>{p['total_pct']:.2f}% total</b>" for p in age_profiles],
+        textposition='top center',
+        textfont=dict(color='#243f37', size=13),
+        showlegend=False,
+        hoverinfo='skip',
+    ))
+    ymax = max(p['total_pct'] for p in age_profiles)
+    bars.update_layout(
+        barmode='stack',
+        bargap=0.47,
+        height=335,
+        margin=dict(l=10, r=15, t=42, b=20),
+        yaxis=dict(title='Observed detection benchmark (%)', range=[0, ymax * 1.25] if ymax > 0 else [0, 1]),
+        xaxis=dict(title=None),
+        legend=dict(orientation='h', y=1.19, x=0, title=None),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        hovermode='closest',
+    )
+    st.plotly_chart(bars, use_container_width=True)
+    st.caption(
+        'The coloured segments add up to the full bar because each uses the '
+        'same age-group population denominator. Sex-specific detection rates '
+        'use separate denominators and are shown on hover, not added together. '
+        'The supplied Eurostat export contains only male/female categories; '
+        'Unknown is therefore unavailable, not known to be zero. '
+        'Age-specific population denominators are approximate. '
+        'These are aggregate detection rates, not individual legal-status probabilities.'
+    )
+else:
+    st.info('No age-group data are available for this selection.')
 
 # Covers the citizenship labels occurring in the provided Eurostat training.csv.
 # Borderline/transcontinental locations are assigned to a single display region
